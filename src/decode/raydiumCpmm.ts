@@ -19,6 +19,9 @@ const TOKEN_0_VAULT = 72;
 const TOKEN_1_VAULT = 104;
 const TOKEN_0_MINT = 168;
 const TOKEN_1_MINT = 200;
+const TOKEN_0_PROGRAM = 232;
+const TOKEN_1_PROGRAM = 264;
+const OBSERVATION_KEY = 296;
 const MINT_0_DECIMALS = 331;
 const MINT_1_DECIMALS = 332;
 const PROTOCOL_FEES_TOKEN_0 = 341;
@@ -38,6 +41,9 @@ export interface RaydiumCpmmPoolState {
   token1Vault: PublicKey;
   token0Mint: PublicKey;
   token1Mint: PublicKey;
+  token0Program: PublicKey;
+  token1Program: PublicKey;
+  observationKey: PublicKey;
   mint0Decimals: number;
   mint1Decimals: number;
   /** Fees accrued inside the vaults, to subtract from vault balances. */
@@ -57,6 +63,9 @@ export function decodeRaydiumCpmmPool(data: Uint8Array): RaydiumCpmmPoolState {
     token1Vault: new PublicKey(data.slice(TOKEN_1_VAULT, TOKEN_1_VAULT + 32)),
     token0Mint: new PublicKey(data.slice(TOKEN_0_MINT, TOKEN_0_MINT + 32)),
     token1Mint: new PublicKey(data.slice(TOKEN_1_MINT, TOKEN_1_MINT + 32)),
+    token0Program: new PublicKey(data.slice(TOKEN_0_PROGRAM, TOKEN_0_PROGRAM + 32)),
+    token1Program: new PublicKey(data.slice(TOKEN_1_PROGRAM, TOKEN_1_PROGRAM + 32)),
+    observationKey: new PublicKey(data.slice(OBSERVATION_KEY, OBSERVATION_KEY + 32)),
     mint0Decimals: data[MINT_0_DECIMALS]!,
     mint1Decimals: data[MINT_1_DECIMALS]!,
     feesToken0:
