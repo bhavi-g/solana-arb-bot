@@ -20,8 +20,13 @@ export interface Config {
   slippageToleranceBps: number;
   maxRps: number;
   pollIntervalMs: number;
-  /** Estimated tx fee converted to quote units, subtracted in detection. */
-  estTxFeeQuote: bigint;
+  /**
+   * Manual override for the estimated tx fee in quote units (ADR-0007).
+   * When set, it is used verbatim and the live fetch/convert is skipped.
+   * When undefined, main.ts derives the fee from a real getFeeForMessage
+   * call plus per-cycle mid-price conversion — this is the normal path.
+   */
+  estTxFeeQuote?: bigint;
   raydiumProgramId: string;
   orcaProgramId: string;
   raydiumPoolAddress?: string;
@@ -139,7 +144,11 @@ export function loadConfig(env: Env): Config {
     slippageToleranceBps: Number(env.SLIPPAGE_TOLERANCE_BPS),
     maxRps,
     pollIntervalMs: Number(env.POLL_INTERVAL_MS),
-    estTxFeeQuote: BigInt(env.EST_TX_FEE_QUOTE ?? "1000"),
+    // ADR-0007: no static default. Only carried through when explicitly set
+    // as an override; otherwise the fee is fetched + repriced live at runtime.
+    ...(env.EST_TX_FEE_QUOTE
+      ? { estTxFeeQuote: BigInt(env.EST_TX_FEE_QUOTE) }
+      : {}),
     raydiumProgramId:
       env.RAYDIUM_CPMM_PROGRAM_ID ??
       RAYDIUM_CPMM_PROGRAM[cluster] ??

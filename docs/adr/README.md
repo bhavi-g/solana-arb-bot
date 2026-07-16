@@ -8,3 +8,4 @@
 | [0004](0004-devnet-mainnet-config-switch.md) | Devnet/mainnet is a config switch, never a code fork | accepted | 2026-07-16 |
 | [0005](0005-mandatory-simulate-before-send.md) | Mandatory simulateTransaction before every send | accepted | 2026-07-16 |
 | [0006](0006-polling-behind-swappable-interface.md) | Polling data source now, behind a swappable PriceSource interface | accepted | 2026-07-16 |
+| [0007](0007-real-fetched-tx-fee-estimate.md) | Real fetched tx fee estimate, converted to quote units per cycle | accepted | 2026-07-16 |

@@ -7,6 +7,11 @@ import "dotenv/config";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { loadConfig, type Config } from "./config.js";
 import { detect } from "./detect.js";
+import {
+  applyFeeHeadroom,
+  lamportsFeeToQuote,
+  resolveBaseFeeLamports,
+} from "./fee.js";
 import { execute, type ExecutorRpc } from "./executor.js";
 import { AttemptLogger } from "./logger.js";
 import { loadOrCreateKeypair } from "./wallet.js";
@@ -17,6 +22,7 @@ import { SyntheticPriceSource, SOL_USDC_DEVNET } from "./datasource/synthetic.js
 import { decodeRaydiumCpmmPool, type RaydiumCpmmPoolState } from "./decode/raydiumCpmm.js";
 import { decodeWhirlpool, type WhirlpoolState } from "./decode/orcaWhirlpool.js";
 import { buildArbTransaction, TOKEN_PROGRAM_ID, type ArbBuildContext } from "./txbuilder/index.js";
+import type { Opportunity, PairInfo, PoolSnapshot } from "./types.js";
 
 async function main(): Promise<void> {
   const cfg = loadConfig(process.env);
@@ -51,7 +57,12 @@ async function main(): Promise<void> {
     },
   };
 
-  const { source, buildMeta } = await setUp(cfg, connection, limiter, wallet);
+  const { source, buildMeta, feeLamportsWithHeadroom } = await setUp(
+    cfg,
+    connection,
+    limiter,
+    wallet,
+  );
 
   let stopping = false;
   process.on("SIGINT", () => {
@@ -62,11 +73,17 @@ async function main(): Promise<void> {
   });
 
   await source.run(async (pair: SnapshotPair) => {
+    // ADR-0007: the manual override wins; otherwise reprice the fetched fee
+    // (already carrying its +20% headroom) to quote units at THIS cycle's
+    // live mid price. Fee is subtracted in detect(); the threshold check
+    // there stays a separate step and never sees the headroom.
+    const estTxFeeQuote =
+      cfg.estTxFeeQuote ?? lamportsFeeToQuote(feeLamportsWithHeadroom, pair.cpmm);
     const decision = detect(pair.cpmm, pair.whirlpool, {
       tradeSizeQuote: cfg.tradeSizeQuote,
       minProfitThresholdQuote: cfg.minProfitThresholdQuote,
       slippageToleranceBps: cfg.slippageToleranceBps,
-      estTxFeeQuote: cfg.estTxFeeQuote,
+      estTxFeeQuote,
     });
 
     if (decision.decision === "no-opportunity") {
@@ -101,6 +118,96 @@ interface Setup {
   source: PriceSource;
   /** Produces the txbuilder context for the freshest snapshot pair. */
   buildMeta: (pair: SnapshotPair, blockhash: string) => ArbBuildContext;
+  /**
+   * Base tx fee in lamports with the ADR-0007 +20% headroom already applied,
+   * fetched once at startup. main.ts converts this to quote units per cycle.
+   * 0n when a manual EST_TX_FEE_QUOTE override is set (fetch is skipped).
+   */
+  feeLamportsWithHeadroom: bigint;
+}
+
+/**
+ * Resolve the startup base fee (lamports) with +20% headroom, per ADR-0007.
+ * Builds the ACTUAL arb transaction shape and asks devnet what it would
+ * cost via getFeeForMessage; falls back to the protocol constant on any
+ * failure. Skipped entirely (returns 0n) when a manual override is set.
+ */
+async function resolveStartupFeeLamports(
+  cfg: Config,
+  connection: Connection,
+  limiter: RateLimiter,
+  buildMeta: (pair: SnapshotPair, blockhash: string) => ArbBuildContext,
+  pair: PairInfo,
+  sampleTickIndex: number,
+): Promise<bigint> {
+  if (cfg.estTxFeeQuote !== undefined) {
+    console.log(
+      `[main] EST_TX_FEE_QUOTE override set (${cfg.estTxFeeQuote}); ` +
+        "skipping live fee fetch (ADR-0007).",
+    );
+    return 0n;
+  }
+
+  const sampleOpp: Opportunity = {
+    decision: "opportunity",
+    direction: { buyOn: "raydium-cpmm", sellOn: "orca-whirlpool" },
+    gapBps: 0,
+    quoteIn: cfg.tradeSizeQuote,
+    baseOut: 1n,
+    quoteOut: cfg.tradeSizeQuote,
+    estNetProfit: 0n,
+    minProfitThreshold: cfg.minProfitThresholdQuote,
+  };
+  const samplePair = sampleSnapshotPair(pair, sampleTickIndex);
+
+  const fetchFee = async (): Promise<number | null> => {
+    await limiter.acquire();
+    const { blockhash } = await connection.getLatestBlockhash();
+    const ctx = buildMeta(samplePair, blockhash);
+    const tx = buildArbTransaction(ctx, sampleOpp);
+    await limiter.acquire();
+    const resp = await connection.getFeeForMessage(tx.message);
+    return resp.value;
+  };
+
+  // Our arb tx is signed only by the payer -> 1 signature for the fallback.
+  const { lamports, source } = await resolveBaseFeeLamports(fetchFee, 1);
+  const withHeadroom = applyFeeHeadroom(lamports);
+  console.log(
+    `[main] base tx fee ${lamports} lamports (${source}); ` +
+      `+20% headroom -> ${withHeadroom} lamports (ADR-0007)`,
+  );
+  return withHeadroom;
+}
+
+/** Minimal snapshot pair used only to shape the sample fee transaction. */
+function sampleSnapshotPair(pair: PairInfo, tickIndex: number): SnapshotPair {
+  const cpmm: PoolSnapshot = {
+    kind: "cpmm",
+    dex: "raydium-cpmm",
+    poolAddress: "sample",
+    pair,
+    fetchedAtMs: Date.now(),
+    slot: 0,
+    source: "fee-sample",
+    baseReserve: 1n,
+    quoteReserve: 1n,
+    feeBps: 25,
+  };
+  const whirlpool: PoolSnapshot = {
+    kind: "whirlpool",
+    dex: "orca-whirlpool",
+    poolAddress: "sample",
+    pair,
+    fetchedAtMs: Date.now(),
+    slot: 0,
+    source: "fee-sample",
+    sqrtPriceX64: 1n,
+    liquidity: 1n,
+    tickCurrentIndex: tickIndex,
+    feeBps: 30,
+  };
+  return { cpmm, whirlpool };
 }
 
 async function setUp(
@@ -144,24 +251,32 @@ async function setUp(
     const rayState = decodeRaydiumCpmmPool(rayAcc.data);
     const orcaState = decodeWhirlpool(orcaAcc.data);
 
-    return {
-      source,
-      buildMeta: (snap, blockhash) => ({
-        payer: wallet,
-        recentBlockhash: blockhash,
-        pair,
-        raydium: { programId: raydiumProgramId, poolAddress: raydiumPool, state: rayState },
-        whirlpool: {
-          programId: orcaProgramId,
-          poolAddress: orcaPool,
-          state: orcaState,
-          tickCurrentIndex:
-            snap.whirlpool.kind === "whirlpool"
-              ? snap.whirlpool.tickCurrentIndex
-              : orcaState.tickCurrentIndex,
-        },
-      }),
-    };
+    const buildMeta = (snap: SnapshotPair, blockhash: string): ArbBuildContext => ({
+      payer: wallet,
+      recentBlockhash: blockhash,
+      pair,
+      raydium: { programId: raydiumProgramId, poolAddress: raydiumPool, state: rayState },
+      whirlpool: {
+        programId: orcaProgramId,
+        poolAddress: orcaPool,
+        state: orcaState,
+        tickCurrentIndex:
+          snap.whirlpool.kind === "whirlpool"
+            ? snap.whirlpool.tickCurrentIndex
+            : orcaState.tickCurrentIndex,
+      },
+    });
+
+    const feeLamportsWithHeadroom = await resolveStartupFeeLamports(
+      cfg,
+      connection,
+      limiter,
+      buildMeta,
+      pair,
+      orcaState.tickCurrentIndex,
+    );
+
+    return { source, buildMeta, feeLamportsWithHeadroom };
   }
 
   // Synthetic mode: pool metadata is generated (the pools do not exist on
@@ -196,24 +311,32 @@ async function setUp(
   const synthRayPool = Keypair.generate().publicKey;
   const synthOrcaPool = Keypair.generate().publicKey;
 
-  return {
-    source: new SyntheticPriceSource(),
-    buildMeta: (snap, blockhash) => ({
-      payer: wallet,
-      recentBlockhash: blockhash,
-      pair: SOL_USDC_DEVNET,
-      raydium: { programId: raydiumProgramId, poolAddress: synthRayPool, state: synthRay },
-      whirlpool: {
-        programId: orcaProgramId,
-        poolAddress: synthOrcaPool,
-        state: synthOrca,
-        tickCurrentIndex:
-          snap.whirlpool.kind === "whirlpool"
-            ? snap.whirlpool.tickCurrentIndex
-            : synthOrca.tickCurrentIndex,
-      },
-    }),
-  };
+  const buildMeta = (snap: SnapshotPair, blockhash: string): ArbBuildContext => ({
+    payer: wallet,
+    recentBlockhash: blockhash,
+    pair: SOL_USDC_DEVNET,
+    raydium: { programId: raydiumProgramId, poolAddress: synthRayPool, state: synthRay },
+    whirlpool: {
+      programId: orcaProgramId,
+      poolAddress: synthOrcaPool,
+      state: synthOrca,
+      tickCurrentIndex:
+        snap.whirlpool.kind === "whirlpool"
+          ? snap.whirlpool.tickCurrentIndex
+          : synthOrca.tickCurrentIndex,
+    },
+  });
+
+  const feeLamportsWithHeadroom = await resolveStartupFeeLamports(
+    cfg,
+    connection,
+    limiter,
+    buildMeta,
+    SOL_USDC_DEVNET,
+    synthOrca.tickCurrentIndex,
+  );
+
+  return { source: new SyntheticPriceSource(), buildMeta, feeLamportsWithHeadroom };
 }
 
 main().catch((e) => {

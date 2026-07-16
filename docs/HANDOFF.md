@@ -1,6 +1,18 @@
 # Project Handoff
 
 ## Last updated
+2026-07-16, ~17:40 UTC. Attended session in progress (see
+`docs/sessions/2026-07-16-phase1-finish.md`). **Task 1 of 3 done**:
+EST_TX_FEE_QUOTE now derives from a real `getFeeForMessage` fetch (+20%
+headroom) converted to quote units per cycle — ADR-0007 accepted after
+owner review, `src/fee.ts` added, 78 tests green, live devnet smoke run
+confirmed the `(rpc)` fee path. Remaining: (2) pool seeding — BLOCKED on
+owner approval of a Raydium CPMM SDK before any install; (3) live polling →
+actual on-chain send (final Phase-1 exit criterion).
+
+Earlier baseline below (pre-Task-1) left intact for reference.
+
+## Last updated (prior)
 2026-07-16, ~13:50 UTC. Reflects the state right after the "final commit
 before transfer" commit (`eff477d`) and a follow-up session that read
 project docs and confirmed live wallet balances but wrote no code.

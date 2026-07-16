@@ -138,11 +138,15 @@ function computeGapBps(a: PoolSnapshot, b: PoolSnapshot): number {
   return Number(num / den) - 10_000;
 }
 
-/** Mid price as a fraction num/den (quote per base, raw units). */
-function midPriceNum(s: PoolSnapshot): bigint {
+/**
+ * Mid price as a fraction num/den (quote per base, raw units). Exported so
+ * the fee-estimator (ADR-0007) converts lamport fees to quote units through
+ * the SAME price math detection uses — one source of truth, no duplication.
+ */
+export function midPriceNum(s: PoolSnapshot): bigint {
   return s.kind === "cpmm" ? s.quoteReserve : s.sqrtPriceX64 * s.sqrtPriceX64;
 }
 
-function midPriceDen(s: PoolSnapshot): bigint {
+export function midPriceDen(s: PoolSnapshot): bigint {
   return s.kind === "cpmm" ? s.baseReserve : Q128;
 }
