@@ -1,0 +1,26 @@
+{
+  "name": "solana-arb-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Solana atomic arbitrage bot — Phase 1: devnet mechanics",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@solana/web3.js": "1.98.0",
+    "dotenv": "16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.5",
+    "tsx": "4.19.2",
+    "typescript": "5.7.3",
+    "vitest": "2.1.8"
+  }
+}
