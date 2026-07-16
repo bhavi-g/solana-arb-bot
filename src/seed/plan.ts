@@ -23,6 +23,12 @@ export interface SeedPlanParams {
   minQuoteDepositRaw: bigint;
   /** Wallet balances available to spend. */
   available: { baseRaw: bigint; quoteRaw: bigint };
+  /**
+   * Pools already created in a prior (possibly interrupted) run. Their
+   * deposits are already spent, so the balance guard excludes them — only
+   * the remaining pools' deposits must be covered.
+   */
+  alreadySeeded?: { raydium?: boolean; orca?: boolean };
 }
 
 export interface PoolDeposit {
@@ -64,8 +70,16 @@ export function buildSeedPlan(p: SeedPlanParams): SeedPlan {
 
   const totalBaseRaw = raydium.baseRaw + orca.baseRaw;
   const totalQuoteRaw = raydium.quoteRaw + orca.quoteRaw;
-  assertSufficient(totalBaseRaw, p.available.baseRaw, "base (WSOL)");
-  assertSufficient(totalQuoteRaw, p.available.quoteRaw, "quote (devUSDC)");
+
+  // Only pools not already seeded still need to be funded.
+  const needRaydium = !p.alreadySeeded?.raydium;
+  const needOrca = !p.alreadySeeded?.orca;
+  const needBaseRaw =
+    (needRaydium ? raydium.baseRaw : 0n) + (needOrca ? orca.baseRaw : 0n);
+  const needQuoteRaw =
+    (needRaydium ? raydium.quoteRaw : 0n) + (needOrca ? orca.quoteRaw : 0n);
+  assertSufficient(needBaseRaw, p.available.baseRaw, "base (WSOL)");
+  assertSufficient(needQuoteRaw, p.available.quoteRaw, "quote (devUSDC)");
 
   return {
     raydium,

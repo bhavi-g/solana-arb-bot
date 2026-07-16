@@ -74,6 +74,30 @@ describe("buildSeedPlan — spend guards", () => {
     ).toThrow(/insufficient/i);
   });
 
+  it("only requires the un-seeded pools' balance when some are already seeded", () => {
+    // Orca quote = 1e9 * 0.15 = 150M; both pools need 297M. Wallet covers
+    // orca alone. Raydium already seeded -> only orca's deposit is required.
+    expect(() =>
+      buildSeedPlan(
+        params({
+          available: { baseRaw: 5_000_000_000n, quoteRaw: 150_000_000n },
+          alreadySeeded: { raydium: true },
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it("still refuses when even the un-seeded pool's balance is short", () => {
+    expect(() =>
+      buildSeedPlan(
+        params({
+          available: { baseRaw: 5_000_000_000n, quoteRaw: 149_999_999n },
+          alreadySeeded: { raydium: true },
+        }),
+      ),
+    ).toThrow(/insufficient/i);
+  });
+
   it("accepts a plan exactly at the available balance (boundary)", () => {
     const plan = buildSeedPlan(params());
     expect(() =>

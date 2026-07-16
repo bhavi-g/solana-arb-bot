@@ -1,0 +1,10 @@
+{
+  "cluster": "devnet",
+  "baseMint": "So11111111111111111111111111111111111111112",
+  "quoteMint": "BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k",
+  "baseDecimals": 9,
+  "quoteDecimals": 6,
+  "raydiumPoolAddress": "2yYGrgMKWk5p3f8PSFfUmu2Wz1VMo4au9wRTtBzPre3r",
+  "orcaPoolAddress": "3KBZiL2g8C7tiJ32hTv5v3KM7aK9htpqTw4cTXz1HvPt",
+  "notes": "Orca side is the existing deep devnet pool 3KBZiL2g (cannot create our own WSOL/devUSDC whirlpool: all fee-tier tick spacings already have pools). Arb gap comes from our Raydium pool being priced differently."
+}

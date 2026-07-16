@@ -94,8 +94,67 @@ Orca v2 trap); 78 tests still green.
   `scripts/`; `src/` hot path stays SDK-free (still our own decoders/txbuilder).
 - Orca side needs no new dep: `@orca-so/whirlpools-sdk` (0.21.0) already a devDep.
 
-### 2b. Seeding script — IN PROGRESS (TDD, spends real devnet funds)
-Next: build the seeding script test-first (superpowers:test-driven-development).
+### 2b. Seed-plan pure logic — DONE (TDD)
+`src/seed/plan.ts` + 9 tests (T22). `buildSeedPlan` derives per-pool
+deposits from a target mid price + gapBps with exact bigint math, and
+guards spend: mainnet refusal, non-dust floor, wallet-balance sufficiency.
+
+### 2c. Live config discovered (not hardcoded)
+- Orca devnet WhirlpoolsConfig `FcrweFY1G9HJAHG5inkGB6pKg1HZ6x9UC2WioAfWrGkR`
+  (read from the existing devnet pool's `whirlpoolsConfig` field).
+- Canonical mint order A=WSOL, B=devUSDC → Orca/Raydium price = devUSDC per
+  WSOL (matches our base/quote).
+- Raydium devnet CPMM AmmConfig (index 0) PDA
+  `5MxLgy9oPdTC3YgkiePHqr3EoCRD9uLVYRQS2ANAs7wy` (exists on-chain). Its
+  `ApiCpmmConfigInfo` is reconstructed by decoding the on-chain account with
+  `CpmmConfigInfoLayout` (the SDK's `api.getCpmmConfigs` is mainnet-only).
+
+### 2d. Spend-plan pivot (owner-approved) — discovery
+Acquiring devUSDC through the external Orca pool `3KBZiL2g…` is far more
+expensive than projected: a 0.03 WSOL swap yielded only **0.66 devUSDC**
+(that pool is thin/mispriced), so reaching ~10 devUSDC is impractical.
+Since we set BOTH our own pools' prices, we pivoted (owner-approved) to
+**thin pools + a large deliberate gap**: seed ~0.9 devUSDC + ~0.006 WSOL
+per pool (total ~1.8 devUSDC, fits current balances) with an **800 bps**
+gap so a tiny trade still nets clearly positive. This spends far LESS than
+the originally approved ~5-devUSDC/pool plan.
+- Balances after one top-up run: SOL 1.756, WSOL 0.15, devUSDC 1.99.
+- devUSDC top-up txs (get-devusdc.ts):
+  `4VAh6WAGaChFXeg2vd4KVqngaGixVSSFTZ4WJu18wx2DeDx8ngoSPJVkWDKLF5Uy3AyRxRLYLEnCGSTBKqKPFyi9`,
+  swap `2NR29eAkUhbce6wegSSvgo7djezxqWLcXeQC2uPsLomVREH4eGNGVRfWwkjxagpyyWzF2FvwMrZ3Kked3vwz7wqC`.
+
+### 2e. Seeding script — DONE (with a forced Orca deviation)
+`scripts/seed-devnet-pools.ts` consumes `buildSeedPlan`, wraps SOL→WSOL if
+needed, and is idempotent via `data/seeded-pools.devnet.json`.
+
+- **Raydium CPMM pool CREATED (ours):**
+  `2yYGrgMKWk5p3f8PSFfUmu2Wz1VMo4au9wRTtBzPre3r`
+  (tx `2nhGCj4JLjTyjjrFPzyDai9x8iJWrsKj7WNq3D2XRYGHWN5umDwSYbrd8kQveBU8sVXqs9CkwE9XojAY4NLgEpdt`),
+  seeded 0.006 WSOL / 0.828 devUSDC → price **138 devUSDC/SOL**. First
+  attempt at AmmConfig index 0 failed (`Custom:0` — pool `EEKfr2…` already
+  exists from earlier sessions); switched to index 2 (fresh PDA).
+- **Orca side — could NOT create our own.** Every WSOL/devUSDC tick spacing
+  with a fee tier on config `Fcrwe…` already has a pool; the one free
+  spacing (96) has no fee tier (only Orca's authority can add one). Owner
+  approved adopting the existing **deep** pool
+  `3KBZiL2g8C7tiJ32hTv5v3KM7aK9htpqTw4cTXz1HvPt` (price **~22**, 373 WSOL /
+  6234 devUSDC) as the second venue.
+- **Balance-guard bug found + fixed via TDD:** after Raydium spent its
+  devUSDC, `buildSeedPlan` still demanded both pools' balance. Added
+  `alreadySeeded` so the guard only requires un-seeded pools (2 new tests;
+  11 seedPlan tests total).
+
+**Resulting arb setup:** our Raydium pool (138) vs deep Orca (22) → WSOL is
+~6× cheaper on Orca. Executable direction: buy WSOL cheap on deep Orca,
+sell into our overpriced (tiny) Raydium pool. A ~0.02-devUSDC trade nets
+~+0.09 devUSDC — a large, robust gap for the one required live send.
+Deviation from "seed both our own pools" is forced by devnet (all Orca
+pools pre-exist) and owner-approved.
+
+### 2f. Live send — IN PROGRESS
+Configure polling with RAYDIUM_POOL_ADDRESS=2yYGrgM…,
+ORCA_POOL_ADDRESS=3KBZiL2g…, tiny TRADE_SIZE_QUOTE; run to an ACTUAL send
+and verify with the on-chain signature (verification-before-completion).
 
 ## WHAT'S LEFT (this session)
 3. Live polling against seeded pools → an ACTUAL on-chain send (final
