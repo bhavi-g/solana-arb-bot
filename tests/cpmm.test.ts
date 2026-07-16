@@ -8,9 +8,10 @@ describe("getAmountOut (constant product x*y=k with fee on input)", () => {
   });
 
   it("applies a 30bps input fee (Uniswap-v2-style single rounding)", () => {
-    // aFee = 1000*9970; out = aFee*y / (x*10000 + aFee)
-    //      = 9_970_000 * 1_000_000 / (10_000_000_000 + 9_970_000) = 995.98 -> 995
-    expect(getAmountOut(1000n, 1_000_000n, 1_000_000n, 30)).toBe(995n);
+    // aFee = 1000*9970 = 9_970_000
+    // out = aFee*y / (x*10000 + aFee)
+    //     = 9_970_000_000_000 / 10_009_970_000 = 996.007... -> floor 996
+    expect(getAmountOut(1000n, 1_000_000n, 1_000_000n, 30)).toBe(996n);
   });
 
   it("fee strictly reduces output", () => {
