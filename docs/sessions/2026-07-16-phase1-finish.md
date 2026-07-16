@@ -151,10 +151,55 @@ sell into our overpriced (tiny) Raydium pool. A ~0.02-devUSDC trade nets
 Deviation from "seed both our own pools" is forced by devnet (all Orca
 pools pre-exist) and owner-approved.
 
-### 2f. Live send — IN PROGRESS
-Configure polling with RAYDIUM_POOL_ADDRESS=2yYGrgM…,
-ORCA_POOL_ADDRESS=3KBZiL2g…, tiny TRADE_SIZE_QUOTE; run to an ACTUAL send
-and verify with the on-chain signature (verification-before-completion).
+## Task 3 — Live send — DONE (verified on-chain)
+
+Ran `src/main.ts` polling (DATA_SOURCE=polling) against
+RAYDIUM_POOL_ADDRESS=2yYGrgM… vs ORCA_POOL_ADDRESS=3KBZiL2g…,
+TRADE_SIZE_QUOTE=20000 (0.02 devUSDC), MIN_PROFIT_THRESHOLD_QUOTE=5000,
+SLIPPAGE_TOLERANCE_BPS=100, MAX_RPS=8, POLL_INTERVAL_MS=1500.
+
+**The bot detected the gap, simulated, and SENT real atomic arb txs.**
+Each cycle: buy WSOL cheap on deep Orca, sell into our overpriced Raydium
+pool, in ONE VersionedTransaction, simulate-gated first. **8 sends, all
+finalized on-chain with `err: null`** (verified via `getSignatureStatuses`
++ `getTransaction`). First send:
+`51RYVhyLPSJ6g7rFezVdB7gt3QijVnzuhGGWqygmb9rcgXXgWPcf2HogWNAB4R28noLxLJY9K9MaRByYsJ23R5HQ`
+(slot 476737365, err null, both legs succeeded — Orca whirlpool +
+Raydium CPMM `DRaycpLY18…`).
+
+**Economic verification (not just a log line):**
+- Wallet devUSDC **1.164986 → 1.453143 = +0.288 devUSDC** net profit.
+- Fee estimate live path exercised: `base tx fee 5000 lamports (rpc); +20%
+  headroom -> 6000 lamports (ADR-0007)`.
+- The arb closed the gap: our Raydium pool moved **138 → 28.95
+  devUSDC/SOL** (WSOL reserve 0.006→0.013, devUSDC 0.828→0.38) toward the
+  market ~22 — the gap shrank each cycle (52205 → 5014 bps) exactly as a
+  real arbitrage should. Bot stopped manually after 8 sends.
+
+This is the final Phase-1 exit criterion. **Phase 1 Status → DONE.**
+
+## Four-part summary
+
+**WHAT I BUILT** — ADR-0007 + real-fetched tx-fee estimate (src/fee.ts,
+per-cycle quote conversion, +20% headroom kept separate from the
+threshold); `@raydium-io/raydium-sdk-v2` devDependency (owner-gated);
+`src/seed/plan.ts` (TDD spend logic) + `scripts/seed-devnet-pools.ts`
+(creates our Raydium CPMM pool, adopts the deep Orca pool).
+
+**WHAT WORKS** — 89 unit tests pass; typecheck clean; live fee fetch on
+devnet; our Raydium pool created and seeded; **8 real on-chain atomic arb
+sends, all finalized err:null, +0.288 devUSDC net**, gap closed 138→28.95.
+
+**WHAT'S LEFT** — Phase 1 is complete. Phase 2 (mainnet shadow mode) is the
+next phase. Optional cleanup: README run-instructions for the seeding
+script + the two-pool polling config (added this session).
+
+**OPEN QUESTIONS / BLOCKERS** — none. One forced deviation, owner-approved:
+we adopted an existing deep Orca pool as the second venue because a new
+WSOL/devUSDC whirlpool cannot be created on devnet (all fee-tier tick
+spacings already have pools). If Phase 1 must use a fully self-owned Orca
+pool, that needs Orca's config authority to add a fee tier for a free tick
+spacing — out of our control on this devnet config.
 
 ## WHAT'S LEFT (this session)
 3. Live polling against seeded pools → an ACTUAL on-chain send (final

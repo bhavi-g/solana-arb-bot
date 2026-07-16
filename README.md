@@ -58,23 +58,57 @@ well under the Helius free-tier 10 req/s:
 DATA_SOURCE=polling npm start
 ```
 
-Known-good devnet pools for the WSOL/devUSDC pair (verified 2026-07-16, see
-`npx tsx scripts/probe-devnet-pools.ts`):
+### Seeding a controllable arb (our own Raydium pool)
 
-```
-RAYDIUM_POOL_ADDRESS=EEKfr2PBBhv3Rzz4ezGGZamPyHLC4VSnooj2myo8mdH7
-ORCA_POOL_ADDRESS=3KBZiL2g8C7tiJ32hTv5v3KM7aK9htpqTw4cTXz1HvPt
-QUOTE_MINT=BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k   # devUSDC
+Third-party devnet pools are dust and mostly priced together, so a real
+opportunity rarely appears. `scripts/seed-devnet-pools.ts` creates OUR OWN
+Raydium CPMM WSOL/devUSDC pool at a deliberately different price, so the bot
+can find and execute a real gap. It uses the pure, unit-tested spend logic
+in `src/seed/plan.ts` (mainnet refusal, non-dust floor, balance guard) and
+is idempotent (persists addresses to `data/seeded-pools.devnet.json`).
+
+```bash
+npx tsx scripts/seed-devnet-pools.ts
 ```
 
-Devnet pool liquidity is dust-sized; keep `TRADE_SIZE_QUOTE` tiny (e.g.
-`50000` = 0.05 devUSDC) or detection will correctly price-impact itself out
-of every opportunity.
+A new WSOL/devUSDC **Orca** whirlpool cannot be created on devnet (all
+fee-tier tick spacings already have pools), so the script adopts the
+existing deep Orca pool `3KBZiL2g…` as the second venue; the price gap comes
+from our Raydium pool. (Need devUSDC first? `scripts/get-devusdc.ts` swaps a
+little SOL for it through that Orca pool — there is no devUSDC faucet.)
+
+### Live polling against the seeded pair
+
+Point polling at the seeded pool addresses (see the output of the seed
+script, or `data/seeded-pools.devnet.json`):
+
+```bash
+DATA_SOURCE=polling \
+RAYDIUM_POOL_ADDRESS=2yYGrgMKWk5p3f8PSFfUmu2Wz1VMo4au9wRTtBzPre3r \
+ORCA_POOL_ADDRESS=3KBZiL2g8C7tiJ32hTv5v3KM7aK9htpqTw4cTXz1HvPt \
+BASE_MINT=So11111111111111111111111111111111111111112 \
+QUOTE_MINT=BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k \
+BASE_DECIMALS=9 QUOTE_DECIMALS=6 \
+TRADE_SIZE_QUOTE=20000 MIN_PROFIT_THRESHOLD_QUOTE=5000 \
+SLIPPAGE_TOLERANCE_BPS=100 MAX_RPS=8 POLL_INTERVAL_MS=1500 \
+npm start
+```
+
+This configuration produced the first verified live devnet arb sends on
+2026-07-16 (8 txs finalized, +0.288 devUSDC net; see
+`docs/sessions/2026-07-16-phase1-finish.md`). Keep `TRADE_SIZE_QUOTE` tiny —
+the sell side (our Raydium pool) is intentionally shallow. `EST_TX_FEE_QUOTE`
+is normally left unset: the fee is fetched live and converted per cycle
+(ADR-0007).
+
+Other known third-party devnet pools for this pair (dust; probe with
+`npx tsx scripts/probe-devnet-pools.ts`): Raydium
+`EEKfr2PBBhv3Rzz4ezGGZamPyHLC4VSnooj2myo8mdH7`.
 
 ## Tests
 
 ```bash
-npm test          # 68 tests: AMM math, detection, executor gate, decoders, limiter…
+npm test          # 89 tests: AMM math, detection, executor gate, fee estimate, seed plan, decoders, limiter…
 npm run typecheck
 ```
 

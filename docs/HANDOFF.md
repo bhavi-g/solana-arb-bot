@@ -1,16 +1,27 @@
 # Project Handoff
 
 ## Last updated
-2026-07-16, ~17:40 UTC. Attended session in progress (see
-`docs/sessions/2026-07-16-phase1-finish.md`). **Task 1 of 3 done**:
-EST_TX_FEE_QUOTE now derives from a real `getFeeForMessage` fetch (+20%
-headroom) converted to quote units per cycle — ADR-0007 accepted after
-owner review, `src/fee.ts` added, 78 tests green, live devnet smoke run
-confirmed the `(rpc)` fee path. Remaining: (2) pool seeding — BLOCKED on
-owner approval of a Raydium CPMM SDK before any install; (3) live polling →
-actual on-chain send (final Phase-1 exit criterion).
+2026-07-16, ~19:15 UTC. Attended session (see
+`docs/sessions/2026-07-16-phase1-finish.md`). **PHASE 1 IS DONE** — all
+three tasks complete and the final exit criterion is met with verified
+on-chain evidence:
+1. EST_TX_FEE_QUOTE now derives from a real `getFeeForMessage` fetch (+20%
+   headroom, kept separate from the threshold), converted per cycle —
+   ADR-0007 accepted after owner review (`src/fee.ts`).
+2. Pool seeding: created our own Raydium CPMM pool
+   `2yYGrgMKWk5p3f8PSFfUmu2Wz1VMo4au9wRTtBzPre3r` (~138 devUSDC/SOL) via the
+   owner-approved `@raydium-io/raydium-sdk-v2` devDependency; adopted the
+   existing deep Orca pool `3KBZiL2g8C7tiJ32hTv5v3KM7aK9htpqTw4cTXz1HvPt`
+   (~22) as the second venue (a new WSOL/devUSDC whirlpool can't be created
+   on devnet). Spend logic TDD'd in `src/seed/plan.ts`.
+3. Live send: **8 real atomic arb transactions, all finalized `err:null`**,
+   wallet devUSDC +0.288 net, gap closed 138→28.95. First sig
+   `51RYVhyLPSJ6g7rFezVdB7gt3QijVnzuhGGWqygmb9rcgXXgWPcf2HogWNAB4R28noLxLJY9K9MaRByYsJ23R5HQ`.
 
-Earlier baseline below (pre-Task-1) left intact for reference.
+89 unit tests pass; typecheck clean. Next phase: Phase 2 (mainnet shadow
+mode). Seeded venue addresses persisted in `data/seeded-pools.devnet.json`.
+
+Earlier baselines below left intact for reference.
 
 ## Last updated (prior)
 2026-07-16, ~13:50 UTC. Reflects the state right after the "final commit

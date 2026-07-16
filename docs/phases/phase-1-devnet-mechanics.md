@@ -1,7 +1,8 @@
 # Phase 1 — Devnet Mechanics
 
-## Status: IN PROGRESS — code complete, awaiting owner review + one live send demo
-(see docs/sessions/2026-07-16.md for evidence and the single remaining item)
+## Status: DONE — all exit criteria met, including a verified live on-chain send
+(evidence in docs/sessions/2026-07-16-phase1-finish.md; live send verified
+finalized on-chain 2026-07-16, see the exit-criteria table below)
 
 ## Scope
 Devnet only. No mainnet, no Jito, no real money. Goal: build the bot's
@@ -63,11 +64,19 @@ core mechanics correctly and prove they work end-to-end on fake funds.
       −2954bps gap detected on real pools — session log JSONL excerpts)
 - [x] Every send path goes through simulateTransaction first
       (evidence: single gate in src/executor.ts, grep-verified only
-      sendRawTransaction call site; 5 abort-path unit tests. Caveat: no
-      live send has been exercised on-chain yet — see session log)
+      sendRawTransaction call site; 5 abort-path unit tests. NOW ALSO
+      exercised live: 8 real devnet sends on 2026-07-16, each simulated
+      before send, all finalized err:null — first sig
+      51RYVhyLPSJ6g7rFezVdB7gt3QijVnzuhGGWqygmb9rcgXXgWPcf2HogWNAB4R28noLxLJY9K9MaRByYsJ23R5HQ)
 - [x] Every attempt (sent, aborted, reverted) is logged
       (evidence: logs/attempts.jsonl from both runs; sent/send-failed
-      variants pinned by unit tests)
+      variants pinned by unit tests; the 8 live sends logged with real
+      signatures)
+- [x] A real atomic arb transaction lands on devnet (the final gap-closer)
+      (evidence: bot ran against our seeded Raydium pool 2yYGrgM… (138
+      devUSDC/SOL) vs deep Orca pool 3KBZiL2g… (~22); 8 sends finalized
+      err:null; wallet devUSDC +0.288 net; Raydium price moved 138→28.95 as
+      the arb closed the gap — session log 2f)
 - [x] Data-source / detection / execution / logging are cleanly separated
       modules (verified by checking the code, not just claimed —
       src/main.ts is the sole wiring point; detection is pure)
