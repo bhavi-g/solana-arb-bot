@@ -1,6 +1,7 @@
 # Phase 1 — Devnet Mechanics
 
-## Status: NOT STARTED
+## Status: IN PROGRESS — code complete, awaiting owner review + one live send demo
+(see docs/sessions/2026-07-16.md for evidence and the single remaining item)
 
 ## Scope
 Devnet only. No mainnet, no Jito, no real money. Goal: build the bot's
@@ -55,12 +56,21 @@ core mechanics correctly and prove they work end-to-end on fake funds.
 - Commit after each completed task, not only at session end.
 
 ## Exit criteria (all must be true to move to Phase 2)
-- [ ] Bot runs on devnet without errors
-- [ ] Correctly detects at least one synthetic/test arbitrage opportunity
-- [ ] Every send path goes through simulateTransaction first
-- [ ] Every attempt (sent, aborted, reverted) is logged
-- [ ] Data-source / detection / execution / logging are cleanly separated
-      modules (verified by checking the code, not just claimed)
+- [x] Bot runs on devnet without errors
+      (evidence: 2026-07-16 synthetic + live polling runs, session log)
+- [x] Correctly detects at least one synthetic/test arbitrage opportunity
+      (evidence: synthetic −300bps cycle detected; ALSO a live devnet
+      −2954bps gap detected on real pools — session log JSONL excerpts)
+- [x] Every send path goes through simulateTransaction first
+      (evidence: single gate in src/executor.ts, grep-verified only
+      sendRawTransaction call site; 5 abort-path unit tests. Caveat: no
+      live send has been exercised on-chain yet — see session log)
+- [x] Every attempt (sent, aborted, reverted) is logged
+      (evidence: logs/attempts.jsonl from both runs; sent/send-failed
+      variants pinned by unit tests)
+- [x] Data-source / detection / execution / logging are cleanly separated
+      modules (verified by checking the code, not just claimed —
+      src/main.ts is the sole wiring point; detection is pure)
 
 ## End-of-phase output
 Update docs/sessions/<date>.md with: WHAT I BUILT / WHAT WORKS / WHAT'S
