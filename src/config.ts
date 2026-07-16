@@ -37,8 +37,9 @@ export interface Config {
  * (overridable via RAYDIUM_CPMM_PROGRAM_ID / ORCA_WHIRLPOOL_PROGRAM_ID).
  * The Whirlpool program uses the same address on devnet and mainnet.
  */
+// Devnet CPMM program per docs.raydium.io/reference/program-addresses
 const RAYDIUM_CPMM_PROGRAM: Record<string, string> = {
-  devnet: "CPMDWBwJDtYax9qW7AyRuVC19Cc4L4Vcy4n2BHAbHkCW",
+  devnet: "DRaycpLY18LhpbydsBWbVJtxpNv9oXPgjRSfpF2bWpYb",
   "mainnet-beta": "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C",
 };
 const ORCA_WHIRLPOOL_PROGRAM = "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc";
