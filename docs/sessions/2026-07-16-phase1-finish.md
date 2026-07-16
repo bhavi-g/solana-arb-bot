@@ -69,10 +69,35 @@ by the fee unit tests.
   fallback): 1 signature = 5000 lamports, headroom → 6000. The fee is now
   derived from real devnet data, not the old hardcoded 1000.
 
+## Task 2 — Pool seeding
+
+### 2a. Raydium CPMM SDK decision (owner-gated) — DECIDED
+Presented owner a 3-option comparison (same gate as the earlier Orca SDK
+choice): (A) `@raydium-io/raydium-sdk-v2`, (B) legacy `@raydium-io/raydium-sdk`
+v1, (C) hand-roll. **Owner chose A.** Installed
+`@raydium-io/raydium-sdk-v2@0.2.59-alpha` as an **exact-pinned devDependency**
+(no `^`, per repo convention). Verified: existing pins untouched
+(`@solana/web3.js` 1.98.4, `@solana/spl-token` 0.4.15 — the SDK's
+`^1.95.3`/`^0.4.8` ranges dedupe against them, no second web3 stack like the
+Orca v2 trap); 78 tests still green.
+- Rejected B: v1 targets the legacy AMM v4, not the CPMM program our bot
+  uses; also conflicts on spl-token 0.3.9.
+- Rejected C: CPMM `initialize` is far heavier than the swap we hand-encoded;
+  high error surface on a real-funds script.
+- Devnet specifics confirmed from the SDK itself:
+  `DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_PROGRAM = DRaycpLY18LhpbydsBWbVJtxpNv9oXPgjRSfpF2bWpYb`
+  (matches our `src/config.ts` devnet CPMM ID),
+  `CREATE_CPMM_POOL_FEE_ACC = 3oE58BKVt8KuYkGxx8zBojugnymWmBiyafWgMrnb6eYy`,
+  plus `getCpmmPdaAmmConfigId`. NOTE: `raydium.api.*` config/pool fetchers are
+  MAINNET-ONLY — devnet must use RPC-based reads (`getRpcPoolInfos`) and the
+  devnet AmmConfig PDA. BN.js↔bigint conversion will be quarantined to
+  `scripts/`; `src/` hot path stays SDK-free (still our own decoders/txbuilder).
+- Orca side needs no new dep: `@orca-so/whirlpools-sdk` (0.21.0) already a devDep.
+
+### 2b. Seeding script — IN PROGRESS (TDD, spends real devnet funds)
+Next: build the seeding script test-first (superpowers:test-driven-development).
+
 ## WHAT'S LEFT (this session)
-2. Pool seeding — Raydium CPMM has no SDK yet; STOP and ask owner before
-   adding any dependency (same gate as the Orca SDK choice). TDD the
-   seeding script (spends real devnet funds).
 3. Live polling against seeded pools → an ACTUAL on-chain send (final
    Phase-1 exit criterion); verify with the real signature via
    superpowers:verification-before-completion.
