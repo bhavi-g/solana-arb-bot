@@ -20,9 +20,28 @@ export interface Config {
   slippageToleranceBps: number;
   maxRps: number;
   pollIntervalMs: number;
+  /** Estimated tx fee converted to quote units, subtracted in detection. */
+  estTxFeeQuote: bigint;
+  raydiumProgramId: string;
+  orcaProgramId: string;
   raydiumPoolAddress?: string;
   orcaPoolAddress?: string;
+  baseMint?: string;
+  quoteMint?: string;
+  baseDecimals?: number;
+  quoteDecimals?: number;
 }
+
+/**
+ * Default program IDs per cluster — reference data, not behavior
+ * (overridable via RAYDIUM_CPMM_PROGRAM_ID / ORCA_WHIRLPOOL_PROGRAM_ID).
+ * The Whirlpool program uses the same address on devnet and mainnet.
+ */
+const RAYDIUM_CPMM_PROGRAM: Record<string, string> = {
+  devnet: "CPMDWBwJDtYax9qW7AyRuVC19Cc4L4Vcy4n2BHAbHkCW",
+  "mainnet-beta": "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C",
+};
+const ORCA_WHIRLPOOL_PROGRAM = "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc";
 
 const HELIUS_FREE_TIER_RPS = 10;
 
@@ -77,12 +96,17 @@ export function loadConfig(env: Env): Config {
     );
   }
   if (dataSource === "polling") {
-    const poolKeys = ["RAYDIUM_POOL_ADDRESS", "ORCA_POOL_ADDRESS"].filter(
-      (k) => !env[k],
-    );
-    if (poolKeys.length > 0) {
+    const pollingKeys = [
+      "RAYDIUM_POOL_ADDRESS",
+      "ORCA_POOL_ADDRESS",
+      "BASE_MINT",
+      "QUOTE_MINT",
+      "BASE_DECIMALS",
+      "QUOTE_DECIMALS",
+    ].filter((k) => !env[k]);
+    if (pollingKeys.length > 0) {
       throw new ConfigError(
-        `DATA_SOURCE=polling requires: ${poolKeys.join(", ")}`,
+        `DATA_SOURCE=polling requires: ${pollingKeys.join(", ")}`,
       );
     }
   }
@@ -114,10 +138,20 @@ export function loadConfig(env: Env): Config {
     slippageToleranceBps: Number(env.SLIPPAGE_TOLERANCE_BPS),
     maxRps,
     pollIntervalMs: Number(env.POLL_INTERVAL_MS),
+    estTxFeeQuote: BigInt(env.EST_TX_FEE_QUOTE ?? "1000"),
+    raydiumProgramId:
+      env.RAYDIUM_CPMM_PROGRAM_ID ??
+      RAYDIUM_CPMM_PROGRAM[cluster] ??
+      RAYDIUM_CPMM_PROGRAM["devnet"]!,
+    orcaProgramId: env.ORCA_WHIRLPOOL_PROGRAM_ID ?? ORCA_WHIRLPOOL_PROGRAM,
     ...(env.RAYDIUM_POOL_ADDRESS
       ? { raydiumPoolAddress: env.RAYDIUM_POOL_ADDRESS }
       : {}),
     ...(env.ORCA_POOL_ADDRESS ? { orcaPoolAddress: env.ORCA_POOL_ADDRESS } : {}),
+    ...(env.BASE_MINT ? { baseMint: env.BASE_MINT } : {}),
+    ...(env.QUOTE_MINT ? { quoteMint: env.QUOTE_MINT } : {}),
+    ...(env.BASE_DECIMALS ? { baseDecimals: Number(env.BASE_DECIMALS) } : {}),
+    ...(env.QUOTE_DECIMALS ? { quoteDecimals: Number(env.QUOTE_DECIMALS) } : {}),
   };
 }
 
