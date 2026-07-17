@@ -1,6 +1,30 @@
 # Project Handoff
 
 ## Last updated
+2026-07-17, ~09:15 UTC. Unattended session (see
+`docs/sessions/2026-07-17.md`). **PHASE 2 CODE IS COMPLETE (T25–T34) BUT
+THE MAINNET SHADOW RUN IS BLOCKED ON AN OWNER DECISION.**
+
+- Send path structurally disabled for PHASE=2 (ADR-0008: config-derived
+  `sendEnabled`, executor-internal refusal, null send transport, unsigned
+  shadow txs). PHASE>=3 refuses to start entirely.
+- Every opportunity record carries an ADR-0009 cost breakdown (gross AND
+  net after priority fee + modeled 0.55 Jito tip). Stats CLI:
+  `npx tsx scripts/shadow-stats.ts --cluster mainnet-beta`.
+- **BLOCKER**: deepest mainnet Raydium CPMM SOL/USDC pool is $429 TVL
+  (probe-verified, exhaustive) — failed the 100k-USDC depth gate. Owner
+  must choose: CLMM decoder / AMM v4 decoder / two-Orca-pool detection /
+  accept the thin pool. NO mainnet run started, per owner instruction.
+- Ready once unblocked: pools + surrogate in `data/pools.mainnet.json`,
+  run command in `.env.example` Phase-2 block, 72h duration owner-set.
+- Geyser gRPC source code-complete (`src/datasource/geyser.ts`), NOT
+  runnable: needs an owner-procured endpoint (money item); CPMM vault
+  subscription is a documented gap pending that endpoint.
+- 120 unit tests pass; typecheck clean.
+
+Earlier baselines below left intact for reference.
+
+## Last updated (prior)
 2026-07-16, ~19:15 UTC. Attended session (see
 `docs/sessions/2026-07-16-phase1-finish.md`). **PHASE 1 IS DONE** — all
 three tasks complete and the final exit criterion is met with verified

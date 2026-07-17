@@ -1,6 +1,19 @@
 # Phase 2 — Mainnet Shadow Mode
 
-## Status: NOT STARTED (do not begin until Phase 1 exit criteria are met)
+## Status: IN PROGRESS — code complete (T27–T33); shadow run BLOCKED on
+## owner venue decision (see 2026-07-17 session log BLOCKERS)
+
+Build-task state (2026-07-17): (1) mainnet config profile ✔ (.env.example
+Phase-2 block; ADR-0008 send-disable enforced at PHASE=2). (2) price feed ✔
+code-ready — polling is cluster-agnostic; BUT the deepest mainnet Raydium
+CPMM SOL/USDC pool failed the 100k-USDC depth gate ($429 TVL vs Orca's
+$32.5M whirlpool), so the Raydium venue is undecided and no mainnet run has
+started. (3) send path hard-disabled ✔ (ADR-0008, 3 layers + unsigned
+shadow txs, tested). (4) tracking ✔ (costs on every record per ADR-0009;
+scripts/shadow-stats.ts). (5) no Jito ✔ (tip is modeled accounting only).
+Geyser gRPC source is code-complete but unrunnable until the owner
+provides an endpoint (not on the Helius free tier). 72h run duration set
+per owner (2026-07-17).
 
 ## Scope
 Mainnet DATA only. No real transaction is ever submitted in this phase.
