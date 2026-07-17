@@ -41,7 +41,12 @@ export interface ExecuteMeta {
   cluster: string;
   dataSource: string;
   slot: number;
+  /** ADR-0008: when false the executor refuses to send, ever. */
+  sendEnabled: boolean;
 }
+
+/** Thrown by the shadow-mode send transport: reaching it means layer 2 failed. */
+export class SendDisabledError extends Error {}
 
 const CU_MARGIN_NUM = 115n; // measured units + 15% headroom
 const CU_MARGIN_DEN = 100n;
@@ -110,6 +115,21 @@ export async function execute(
   // Compute budget measured, not guessed (PROJECT_BRIEF execution rules).
   const measured = BigInt(sim.value.unitsConsumed ?? 200_000);
   const cuLimit = Number((measured * CU_MARGIN_NUM) / CU_MARGIN_DEN);
+
+  // ADR-0008 layer 2: in shadow mode the send call below is unreachable.
+  if (!meta.sendEnabled) {
+    return finish({
+      ...base,
+      timestamp: new Date().toISOString(),
+      action: "shadow-simulated",
+      simulation,
+      reason:
+        `SHADOW: simulation passed (${measured} CU); would send with ` +
+        `limit ${cuLimit} — send disabled (ADR-0008)`,
+      detail: { ...base.detail, wouldSendCuLimit: cuLimit },
+    });
+  }
+
   const sendableTx = buildTx(cuLimit);
 
   try {

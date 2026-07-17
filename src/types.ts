@@ -92,6 +92,7 @@ export interface Opportunity {
 export type AttemptAction =
   | "aborted-simulation-failed"
   | "aborted-below-threshold"
+  | "shadow-simulated"
   | "sent"
   | "send-failed";
 

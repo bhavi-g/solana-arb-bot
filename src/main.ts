@@ -12,7 +12,7 @@ import {
   lamportsFeeToQuote,
   resolveBaseFeeLamports,
 } from "./fee.js";
-import { execute, type ExecutorRpc } from "./executor.js";
+import { execute, SendDisabledError, type ExecutorRpc } from "./executor.js";
 import { AttemptLogger } from "./logger.js";
 import { loadOrCreateKeypair } from "./wallet.js";
 import { RateLimiter } from "./datasource/rateLimiter.js";
@@ -35,6 +35,12 @@ async function main(): Promise<void> {
   const connection = new Connection(cfg.rpcUrl, cfg.commitment);
   const wallet = loadOrCreateKeypair(cfg.keypairPath);
   console.log(`[main] wallet ${wallet.publicKey.toBase58()}`);
+  if (!cfg.sendEnabled) {
+    console.log(
+      "[main] SHADOW MODE — send path structurally disabled (ADR-0008); " +
+        "no real transaction will be submitted",
+    );
+  }
   const logger = new AttemptLogger();
   const limiter = new RateLimiter(cfg.maxRps);
 
@@ -48,13 +54,22 @@ async function main(): Promise<void> {
         config as Parameters<Connection["simulateTransaction"]>[1],
       );
     },
-    sendRawTransaction: async (raw, options) => {
-      await limiter.acquire();
-      return connection.sendRawTransaction(
-        raw,
-        options as Parameters<Connection["sendRawTransaction"]>[1],
-      );
-    },
+    // ADR-0008 layer 3: in shadow mode the real send capability is never
+    // constructed; reaching this thrower means layer 2 was bypassed.
+    sendRawTransaction: cfg.sendEnabled
+      ? async (raw, options) => {
+          await limiter.acquire();
+          return connection.sendRawTransaction(
+            raw,
+            options as Parameters<Connection["sendRawTransaction"]>[1],
+          );
+        }
+      : async () => {
+          throw new SendDisabledError(
+            "sendRawTransaction invoked in shadow mode — the executor's " +
+              "layer-2 guard was bypassed (ADR-0008)",
+          );
+        },
   };
 
   const { source, buildMeta, feeLamportsWithHeadroom } = await setUp(
@@ -107,7 +122,12 @@ async function main(): Promise<void> {
       (cuLimit) => buildArbTransaction(ctx, decision, cuLimit),
       decision,
       logger,
-      { cluster: cfg.cluster, dataSource: source.name, slot: pair.cpmm.slot },
+      {
+        cluster: cfg.cluster,
+        dataSource: source.name,
+        slot: pair.cpmm.slot,
+        sendEnabled: cfg.sendEnabled,
+      },
     );
   });
 

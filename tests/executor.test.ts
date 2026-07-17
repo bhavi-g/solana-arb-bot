@@ -17,7 +17,7 @@ const opp: Opportunity = {
   minProfitThreshold: 10_000n,
 };
 
-const meta = { cluster: "devnet", dataSource: "synthetic", slot: 3 };
+const meta = { cluster: "devnet", dataSource: "synthetic", slot: 3, sendEnabled: true };
 
 /** Fake transaction: records the compute-unit limit it was built with. */
 function fakeBuildTx() {
@@ -154,5 +154,48 @@ describe("execute (the ADR-0005 simulate-then-send gate)", () => {
       "aborted-below-threshold",
       "sent",
     ]);
+  });
+});
+
+describe("shadow mode (ADR-0008 layer 2: executor refuses to send)", () => {
+  const shadowMeta = { ...meta, cluster: "mainnet-beta", sendEnabled: false };
+
+  it("simulates, logs shadow-simulated, and NEVER calls send — even when profitable", async () => {
+    const { rpc, sendSpy, simulateSpy } = makeRpc({ unitsConsumed: 100_000 });
+    const { buildTx, builds } = fakeBuildTx();
+    const { logger, file } = tempLogger();
+
+    const result = await execute(rpc, buildTx, opp, logger, shadowMeta);
+
+    expect(simulateSpy).toHaveBeenCalledTimes(1);
+    expect(sendSpy).not.toHaveBeenCalled();
+    expect(result.action).toBe("shadow-simulated");
+    expect(builds.length).toBe(1); // no second (sendable) build in shadow
+
+    const line = JSON.parse(readFileSync(file, "utf8").trim());
+    expect(line.action).toBe("shadow-simulated");
+    expect(line.simulation.unitsConsumed).toBe(100_000);
+    expect(line.reason).toMatch(/shadow/i);
+    expect(line.detail.wouldSendCuLimit).toBeGreaterThanOrEqual(100_000);
+  });
+
+  it("still logs aborted-simulation-failed on sim error (revert-rate signal)", async () => {
+    const { rpc, sendSpy } = makeRpc({ err: { InstructionError: [0, { Custom: 1 }] } });
+    const { buildTx } = fakeBuildTx();
+    const { logger } = tempLogger();
+    const result = await execute(rpc, buildTx, opp, logger, shadowMeta);
+    expect(result.action).toBe("aborted-simulation-failed");
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+
+  it("still enforces the threshold in shadow mode", async () => {
+    const { rpc, sendSpy } = makeRpc();
+    const { buildTx } = fakeBuildTx();
+    const { logger } = tempLogger();
+    const result = await execute(
+      rpc, buildTx, { ...opp, estNetProfit: 0n }, logger, shadowMeta,
+    );
+    expect(result.action).toBe("aborted-below-threshold");
+    expect(sendSpy).not.toHaveBeenCalled();
   });
 });
