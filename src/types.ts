@@ -112,6 +112,16 @@ export interface AttemptRecord {
     logsTail?: string[];
   };
   signature?: string;
+  /** ADR-0009 cost breakdown (bigints serialize as decimal strings). */
+  costs?: {
+    grossProfit: bigint;
+    baseFee: bigint;
+    priorityFee: bigint | null;
+    jitoTip: bigint;
+    jitoTipFraction: number;
+    netProfit: bigint | null;
+    netComputable: boolean;
+  };
   reason: string;
   detail?: Record<string, unknown>;
 }

@@ -43,6 +43,12 @@ export interface ExecuteMeta {
   slot: number;
   /** ADR-0008: when false the executor refuses to send, ever. */
   sendEnabled: boolean;
+  /**
+   * ADR-0009: caller-supplied cost model. Called with the would-send CU
+   * limit (or null when simulation failed); result is attached to the
+   * attempt record. Optional so Phase-1 style callers/tests are unchanged.
+   */
+  computeCosts?: (cuLimit: number | null) => NonNullable<AttemptRecord["costs"]>;
 }
 
 /** Thrown by the shadow-mode send transport: reaching it means layer 2 failed. */
@@ -108,6 +114,7 @@ export async function execute(
       timestamp: new Date().toISOString(),
       action: "aborted-simulation-failed",
       simulation,
+      ...(meta.computeCosts ? { costs: meta.computeCosts(null) } : {}),
       reason: `simulation returned an error: ${JSON.stringify(sim.value.err)}`,
     });
   }
@@ -123,6 +130,7 @@ export async function execute(
       timestamp: new Date().toISOString(),
       action: "shadow-simulated",
       simulation,
+      ...(meta.computeCosts ? { costs: meta.computeCosts(cuLimit) } : {}),
       reason:
         `SHADOW: simulation passed (${measured} CU); would send with ` +
         `limit ${cuLimit} — send disabled (ADR-0008)`,

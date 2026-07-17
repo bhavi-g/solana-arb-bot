@@ -33,6 +33,12 @@ export interface Config {
    * call plus per-cycle mid-price conversion — this is the normal path.
    */
   estTxFeeQuote?: bigint;
+  /**
+   * Modeled Jito tip fraction of gross profit, in basis points (ADR-0009).
+   * Accounting only — no tip is ever constructed, paid, or sent in Phase 2.
+   * Owner-approved band: 5000–6000 bps (0.50–0.60). Default 5500.
+   */
+  jitoTipFractionBps: number;
   raydiumProgramId: string;
   orcaProgramId: string;
   raydiumPoolAddress?: string;
@@ -145,6 +151,19 @@ export function loadConfig(env: Env): Config {
     );
   }
 
+  const jitoTipFraction = env.JITO_TIP_FRACTION
+    ? Number(env.JITO_TIP_FRACTION)
+    : 0.55;
+  if (
+    !Number.isFinite(jitoTipFraction) ||
+    jitoTipFraction < 0.5 ||
+    jitoTipFraction > 0.6
+  ) {
+    throw new ConfigError(
+      "JITO_TIP_FRACTION must be a number between 0.50 and 0.60 (ADR-0009)",
+    );
+  }
+
   const maxRps = Number(env.MAX_RPS);
   if (!Number.isFinite(maxRps) || maxRps <= 0 || maxRps > HELIUS_FREE_TIER_RPS) {
     throw new ConfigError(
@@ -171,6 +190,7 @@ export function loadConfig(env: Env): Config {
     ...(env.EST_TX_FEE_QUOTE
       ? { estTxFeeQuote: BigInt(env.EST_TX_FEE_QUOTE) }
       : {}),
+    jitoTipFractionBps: Math.round(jitoTipFraction * 10_000),
     raydiumProgramId:
       env.RAYDIUM_CPMM_PROGRAM_ID ??
       RAYDIUM_CPMM_PROGRAM[cluster] ??

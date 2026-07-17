@@ -130,4 +130,11 @@ describe("sendEnabled derivation (ADR-0008 structural send-disable)", () => {
     expect(() => loadConfig(shadowEnv({ SEND_ENABLED: "true" }))).toThrow(/no such switch|not a switch/i);
     expect(() => loadConfig(shadowEnv({ SEND_ENABLED: "false" }))).toThrow(/no such switch|not a switch/i);
   });
+
+  it("JITO_TIP_FRACTION defaults to 0.55 and must stay in [0.50, 0.60]", () => {
+    expect(loadConfig(shadowEnv()).jitoTipFractionBps).toBe(5500);
+    expect(loadConfig(shadowEnv({ JITO_TIP_FRACTION: "0.6" })).jitoTipFractionBps).toBe(6000);
+    expect(() => loadConfig(shadowEnv({ JITO_TIP_FRACTION: "0.45" }))).toThrow(/0\.50/);
+    expect(() => loadConfig(shadowEnv({ JITO_TIP_FRACTION: "abc" }))).toThrow(/0\.50/);
+  });
 });

@@ -6,6 +6,11 @@
 import "dotenv/config";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { loadConfig, type Config } from "./config.js";
+import {
+  computeCosts,
+  medianCuPriceMicroLamports,
+  DEFAULT_CU_PRICE_MICRO_LAMPORTS,
+} from "./costs.js";
 import { detect } from "./detect.js";
 import {
   applyFeeHeadroom,
@@ -43,6 +48,26 @@ async function main(): Promise<void> {
   }
   const logger = new AttemptLogger();
   const limiter = new RateLimiter(cfg.maxRps);
+
+  // ADR-0009: live CU price, cached 30s so it doesn't eat the RPS budget.
+  const CU_PRICE_TTL_MS = 30_000;
+  let cuPriceCache = { value: DEFAULT_CU_PRICE_MICRO_LAMPORTS, fetchedAtMs: 0 };
+  const currentCuPrice = async (): Promise<bigint> => {
+    if (Date.now() - cuPriceCache.fetchedAtMs < CU_PRICE_TTL_MS) {
+      return cuPriceCache.value;
+    }
+    try {
+      await limiter.acquire();
+      const fees = await connection.getRecentPrioritizationFees();
+      cuPriceCache = {
+        value: medianCuPriceMicroLamports(fees),
+        fetchedAtMs: Date.now(),
+      };
+    } catch {
+      cuPriceCache = { ...cuPriceCache, fetchedAtMs: Date.now() }; // keep last
+    }
+    return cuPriceCache.value;
+  };
 
   // Every RPC call the executor makes also counts against the budget.
   const gatedRpc: ExecutorRpc = {
@@ -116,6 +141,7 @@ async function main(): Promise<void> {
 
     await limiter.acquire();
     const { blockhash } = await connection.getLatestBlockhash();
+    const cuPriceNow = await currentCuPrice();
     const ctx = buildMeta(pair, blockhash);
     await execute(
       gatedRpc,
@@ -127,6 +153,17 @@ async function main(): Promise<void> {
         dataSource: source.name,
         slot: pair.cpmm.slot,
         sendEnabled: cfg.sendEnabled,
+        computeCosts: (cuLimit) =>
+          computeCosts(
+            {
+              grossProfitQuote: decision.quoteOut - decision.quoteIn,
+              baseFeeQuote: estTxFeeQuote,
+              cuPriceMicroLamports: cuPriceNow,
+              jitoTipFractionBps: cfg.jitoTipFractionBps,
+              priceRef: pair.cpmm,
+            },
+            cuLimit,
+          ),
       },
     );
   });

@@ -198,4 +198,45 @@ describe("shadow mode (ADR-0008 layer 2: executor refuses to send)", () => {
     expect(result.action).toBe("aborted-below-threshold");
     expect(sendSpy).not.toHaveBeenCalled();
   });
+
+  it("attaches the caller's cost breakdown to shadow records", async () => {
+    const { rpc } = makeRpc({ unitsConsumed: 100_000 });
+    const { buildTx } = fakeBuildTx();
+    const { logger, file } = tempLogger();
+    const computeCosts = vi.fn((cuLimit: number | null) => ({
+      grossProfit: 250_000n,
+      baseFee: 900n,
+      priorityFee: cuLimit === null ? null : 150n,
+      jitoTip: 137_500n,
+      jitoTipFraction: 0.55,
+      netProfit: cuLimit === null ? null : 111_450n,
+      netComputable: cuLimit !== null,
+    }));
+
+    await execute(rpc, buildTx, opp, logger, { ...shadowMeta, computeCosts });
+
+    expect(computeCosts).toHaveBeenCalledWith(expect.any(Number));
+    const line = JSON.parse(readFileSync(file, "utf8").trim());
+    expect(line.costs.grossProfit).toBe("250000");
+    expect(line.costs.netProfit).toBe("111450");
+  });
+
+  it("passes cuLimit=null to the cost hook when simulation fails", async () => {
+    const { rpc } = makeRpc({ err: "Reverted" });
+    const { buildTx } = fakeBuildTx();
+    const { logger, file } = tempLogger();
+    const computeCosts = vi.fn((cuLimit: number | null) => ({
+      grossProfit: 250_000n,
+      baseFee: 900n,
+      priorityFee: null,
+      jitoTip: 137_500n,
+      jitoTipFraction: 0.55,
+      netProfit: null,
+      netComputable: false,
+    }));
+    await execute(rpc, buildTx, opp, logger, { ...shadowMeta, computeCosts });
+    expect(computeCosts).toHaveBeenCalledWith(null);
+    const line = JSON.parse(readFileSync(file, "utf8").trim());
+    expect(line.costs.netComputable).toBe(false);
+  });
 });
