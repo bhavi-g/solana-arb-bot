@@ -1,26 +1,50 @@
 # Project Handoff
 
 ## Last updated
-2026-07-17, ~09:15 UTC. Unattended session (see
-`docs/sessions/2026-07-17.md`). **PHASE 2 CODE IS COMPLETE (T25–T34) BUT
-THE MAINNET SHADOW RUN IS BLOCKED ON AN OWNER DECISION.**
+2026-07-17, ~17:15 UTC. Unattended session (see
+`docs/sessions/2026-07-17.md`). **PHASE 2 IS RUNNING: a 72-hour mainnet
+shadow-mode collection started 2026-07-17T17:13:37Z (owner Decision:
+Option 3, two-Orca venue).**
 
-- Send path structurally disabled for PHASE=2 (ADR-0008: config-derived
-  `sendEnabled`, executor-internal refusal, null send transport, unsigned
-  shadow txs). PHASE>=3 refuses to start entirely.
-- Every opportunity record carries an ADR-0009 cost breakdown (gross AND
-  net after priority fee + modeled 0.55 Jito tip). Stats CLI:
-  `npx tsx scripts/shadow-stats.ts --cluster mainnet-beta`.
-- **BLOCKER**: deepest mainnet Raydium CPMM SOL/USDC pool is $429 TVL
-  (probe-verified, exhaustive) — failed the 100k-USDC depth gate. Owner
-  must choose: CLMM decoder / AMM v4 decoder / two-Orca-pool detection /
-  accept the thin pool. NO mainnet run started, per owner instruction.
-- Ready once unblocked: pools + surrogate in `data/pools.mainnet.json`,
-  run command in `.env.example` Phase-2 block, 72h duration owner-set.
-- Geyser gRPC source code-complete (`src/datasource/geyser.ts`), NOT
-  runnable: needs an owner-procured endpoint (money item); CPMM vault
-  subscription is a documented gap pending that endpoint.
-- 120 unit tests pass; typecheck clean.
+**WHAT IS CURRENTLY RUNNING**
+- `src/main.ts` polling mainnet in the background (log:
+  `logs/shadow-run-72h.log`, start time in `logs/shadow-run-72h.start`).
+  Command is the `.env.example` Phase-2 `orca-orca` block. Structurally
+  send-disabled (ADR-0008) — read-only, zero real transactions.
+- Venue: two deep Orca SOL/USDC whirlpools (Raydium CPMM SOL/USDC is too
+  thin on mainnet — $429 TVL — so it fails the depth gate; owner chose
+  two-Orca as a **documented interim** while a Raydium CLMM decoder is
+  built next). Pools (both cleared the 100k-USDC gate):
+  `Czfq3x…44zE` (4 bps, $32.5M) and `FpCMFD…o28Q` (2 bps, $579k).
+- Stop it after 72h (≈2026-07-20T17:13Z) with `pkill -f "tsx src/main.ts"`;
+  analyze with `npx tsx scripts/shadow-stats.ts --cluster mainnet-beta`.
+
+**EXPECTATION / CAVEAT**: two deep same-pair Orca pools are kept aligned
+by the market (observed gap ~0–2 bps), and a round trip costs ~1 USDC, so
+**profitable opportunities will be rare-to-none** — the run is expected to
+be mostly `no-opportunity`. That "≈0 net-positive between two Orca pools"
+IS honest interim data, but the real Phase-3 go/no-go signal needs the
+**cross-DEX** venue: Option 1, a Raydium CLMM decoder, is the planned
+NEXT venue (not abandoned).
+
+**VERIFIED THIS SESSION**
+- Two-whirlpool arb tx SIMULATES cleanly on real mainnet as the surrogate
+  (`scripts/smoke-two-whirlpool-sim.ts`: `err:null`, 56,089 CU, both Orca
+  legs execute) — only `simulateTransaction` was ever called, no send.
+- 129 unit tests pass; typecheck clean.
+- Structural send-disable (ADR-0008): PHASE=2 → `sendEnabled=false`,
+  executor refuses, send transport throws, shadow txs unsigned. PHASE>=3
+  refuses to start. Zero `sent` records on mainnet (grep-verified).
+- Cost model (ADR-0009): gross AND net (priority fee + modeled 0.55 Jito
+  tip) on every opportunity record.
+- Geyser gRPC source is code-complete (`src/datasource/geyser.ts`) but NOT
+  runnable: needs an owner-procured endpoint (money item; not on Helius
+  free tier). Not wired for the two-Orca venue yet.
+
+**NEW CODE FOR THE TWO-ORCA VENUE (T35–T39)**: pool identity in
+`ArbDirection`; `src/txbuilder/twoWhirlpool.ts`;
+`src/datasource/orcaOrcaPolling.ts`; `VENUE` config switch + main.ts
+wiring; depth + sim smoke scripts.
 
 Earlier baselines below left intact for reference.
 

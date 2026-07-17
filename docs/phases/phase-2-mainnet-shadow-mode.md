@@ -49,6 +49,50 @@ before a single cent is risked.
 Update session log with the four-part summary plus shadow-mode stats
 (opportunities/hour, avg simulated profit, revert rate).
 
+## Venue decision — 2026-07-17 (owner: Option 3, deliberate interim step)
+
+The mainnet Raydium **CPMM** SOL/USDC venue is unusable for shadow mode:
+the deepest CPMM SOL/USDC pool is `47hq28…YUp4` at **$429 TVL / 214 USDC**
+(exhaustive probe, `scripts/probe-mainnet-pools.ts`), far under the
+100k-USDC depth gate. Real Raydium SOL/USDC depth lives on AMM v4 / CLMM,
+which this codebase does not decode.
+
+**Owner chose Option 3: two-Orca-pool detection** — detect between two deep
+Orca SOL/USDC whirlpools at different fee tiers — as a **deliberate,
+documented interim venue** so the 72h shadow collection can begin on real
+mainnet data now. This is NOT a silent scope-narrowing: it is a
+stop-gap while the real cross-DEX venue is built.
+
+Depth-verified pools (`scripts/probe-orca-pools.ts`, 2026-07-17; three
+cleared the 100k-USDC gate, top two selected):
+- `Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE` — tick spacing 4, 4 bps,
+  $32.5M TVL, 7.74M USDC vault.
+- `FpCMFDFGYotvufJ7HrFHsWEiiQCGbkLCtwHiDnh7o28Q` — tick spacing 2, 2 bps,
+  $579k TVL, 109k USDC vault.
+- (`HJPjoW…gndJ`, spacing 64 / 30 bps, 122k USDC, also cleared — spare.)
+
+**Planned NEXT venue (not abandoned): Option 1 — a Raydium CLMM decoder**,
+built after this Option-3 collection run, to restore the true cross-DEX
+(Raydium-vs-Orca) arbitrage the strategy targets. CLMM is concentrated-
+liquidity like Whirlpools, so detect.ts's whirlpool leg math is largely
+reusable; the new work is the CLMM account decoder and swap-leg builder.
+
+### Implementation gap found while starting Option 3 (must build first)
+Option 3 is NOT a config change. Producing the net-profit / revert-rate
+exit signal needs a *simulatable* two-whirlpool arb transaction, which
+requires new code (tracked as the immediate next tasks):
+1. A two-whirlpool polling source (current `PollingPriceSource` hardcodes
+   Raydium CPMM decode for the first address and throws on a whirlpool).
+2. Pool identity in the domain model (`ArbDirection` currently identifies
+   venues by DEX name; both Orca pools share `orca-whirlpool`, so the tx
+   builder cannot tell which pool to buy on).
+3. A two-whirlpool tx builder (current builder is one CPMM leg + one
+   whirlpool leg).
+Until these land and a short live sim smoke-check confirms real
+`shadow-simulated` records with computable net + zero sends, the 72h run
+does not start (a detection-only run yields no net-positive rate — the
+whole exit signal).
+
 ## Additional requirement (added after order-type/repo research)
 - Every logged shadow opportunity must report NET profit after: priority
   fee, an assumed Jito tip (model as 50-60% of gross profit, since that's
