@@ -1,0 +1,18 @@
+{
+  "probedAt": "2026-07-17T08:53:46.095Z",
+  "cluster": "mainnet-beta",
+  "baseMint": "So11111111111111111111111111111111111111112",
+  "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "baseDecimals": 9,
+  "quoteDecimals": 6,
+  "raydiumCpmmPool": "47hq28mcL7q5GhBg7epyGF2dnuJd4MKFt8QhT7CzYUp4",
+  "orcaWhirlpool": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+  "observed": {
+    "raydiumTvlUsd": 429.14,
+    "orcaTvlUsd": 32526289.161982324,
+    "cpmmUsdcReserve": "214568481",
+    "whirlpoolLiquidity": "610868773479304",
+    "whirlpoolTickCurrentIndex": -25979,
+    "depthGatePassed": false
+  }
+}
