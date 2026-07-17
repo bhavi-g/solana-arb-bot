@@ -243,4 +243,22 @@ describe("buildArbTransaction (one atomic tx, both legs)", () => {
     expect(a1.equals(a2)).toBe(false);
     expect(PublicKey.isOnCurve(a1.toBytes())).toBe(false);
   });
+
+  describe("signerless build for shadow-mode surrogate simulation", () => {
+    it("accepts a PublicKey payer and leaves the tx UNSIGNED", () => {
+      const surrogate = Keypair.generate().publicKey;
+      const c = { ...ctx().ctx, payer: surrogate };
+      const tx = buildArbTransaction(c, opp);
+      expect(tx.signatures.length).toBeGreaterThan(0);
+      expect(tx.signatures[0]!.every((b) => b === 0)).toBe(true);
+      // fee payer and token-account owner are the surrogate, not any wallet
+      expect(tx.message.staticAccountKeys[0]!.equals(surrogate)).toBe(true);
+    });
+
+    it("still signs when payer is a Keypair (Phase-1 path unchanged)", () => {
+      const { ctx: c } = ctx();
+      const tx = buildArbTransaction(c, opp);
+      expect(tx.signatures[0]!.some((b) => b !== 0)).toBe(true);
+    });
+  });
 });

@@ -7,6 +7,8 @@
   "quoteDecimals": 6,
   "raydiumCpmmPool": "47hq28mcL7q5GhBg7epyGF2dnuJd4MKFt8QhT7CzYUp4",
   "orcaWhirlpool": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+  "surrogateOwner": "MfDuWeqSHEqTFVYZ7LoexgAK9dxk7cy4DFJWjWMGVWa",
+  "surrogateObserved": "2026-07-17: USDC 7,759,718 + WSOL 60,584 in ATAs (scripts/find-surrogate.ts)",
   "observed": {
     "raydiumTvlUsd": 429.14,
     "orcaTvlUsd": 32526289.161982324,

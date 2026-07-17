@@ -41,7 +41,13 @@ export function associatedTokenAddress(
 }
 
 export interface ArbBuildContext {
-  payer: Keypair;
+  /**
+   * Keypair → tx is signed (Phase-1 live path). PublicKey → tx is built
+   * UNSIGNED for shadow-mode simulation as a surrogate owner
+   * (sigVerify:false); an unsigned tx is also unsubmittable — an extra
+   * ADR-0008 barrier.
+   */
+  payer: Keypair | PublicKey;
   recentBlockhash: string;
   pair: PairInfo;
   raydium: {
@@ -65,13 +71,14 @@ export function buildArbTransaction(
 ): VersionedTransaction {
   const baseMint = new PublicKey(ctx.pair.baseMint);
   const quoteMint = new PublicKey(ctx.pair.quoteMint);
-  const owner = ctx.payer.publicKey;
+  const owner = ctx.payer instanceof Keypair ? ctx.payer.publicKey : ctx.payer;
 
   const minQuoteOut = opp.quoteIn + opp.minProfitThreshold;
 
   const buyLegIsCpmm = opp.direction.buyOn === "raydium-cpmm";
   const cpmmIx = buildCpmmLeg(
     ctx,
+    owner,
     baseMint,
     buyLegIsCpmm
       ? { inputIsQuote: true, amountIn: opp.quoteIn, minOut: opp.baseOut }
@@ -79,6 +86,7 @@ export function buildArbTransaction(
   );
   const whirlIx = buildWhirlpoolLeg(
     ctx,
+    owner,
     baseMint,
     quoteMint,
     buyLegIsCpmm
@@ -98,17 +106,17 @@ export function buildArbTransaction(
     instructions,
   }).compileToV0Message();
   const tx = new VersionedTransaction(message);
-  tx.sign([ctx.payer]);
+  if (ctx.payer instanceof Keypair) tx.sign([ctx.payer]);
   return tx;
 }
 
 function buildCpmmLeg(
   ctx: ArbBuildContext,
+  owner: PublicKey,
   baseMint: PublicKey,
   leg: { inputIsQuote: boolean; amountIn: bigint; minOut: bigint },
 ): TransactionInstruction {
   const s = ctx.raydium.state;
-  const owner = ctx.payer.publicKey;
   if (!s.token0Mint.equals(baseMint) && !s.token1Mint.equals(baseMint)) {
     throw new Error("Raydium pool does not contain the configured base mint");
   }
@@ -143,12 +151,12 @@ function buildCpmmLeg(
 
 function buildWhirlpoolLeg(
   ctx: ArbBuildContext,
+  owner: PublicKey,
   baseMint: PublicKey,
   quoteMint: PublicKey,
   leg: { aToB: boolean; amount: bigint; threshold: bigint },
 ): TransactionInstruction {
   const s = ctx.whirlpool.state;
-  const owner = ctx.payer.publicKey;
   return buildWhirlpoolSwapIx({
     programId: ctx.whirlpool.programId,
     tokenProgram: TOKEN_PROGRAM_ID,

@@ -283,6 +283,20 @@ async function setUp(
       baseDecimals: cfg.baseDecimals!,
       quoteDecimals: cfg.quoteDecimals!,
     };
+
+    // Shadow mode simulates as a live-discovered funded surrogate so
+    // simulation results reflect the strategy, not our unfunded wallet.
+    // The resulting tx is UNSIGNED (see ArbBuildContext.payer).
+    const buildPayer: Keypair | PublicKey =
+      !cfg.sendEnabled && cfg.surrogateOwner
+        ? new PublicKey(cfg.surrogateOwner)
+        : wallet;
+    if (!cfg.sendEnabled && !cfg.surrogateOwner) {
+      console.log(
+        "[main] WARNING: shadow mode without SURROGATE_OWNER — simulations " +
+          "will fail on wallet errors (unfunded local wallet)",
+      );
+    }
     const source = new PollingPriceSource(
       connection,
       {
@@ -309,7 +323,7 @@ async function setUp(
     const orcaState = decodeWhirlpool(orcaAcc.data);
 
     const buildMeta = (snap: SnapshotPair, blockhash: string): ArbBuildContext => ({
-      payer: wallet,
+      payer: buildPayer,
       recentBlockhash: blockhash,
       pair,
       raydium: { programId: raydiumProgramId, poolAddress: raydiumPool, state: rayState },

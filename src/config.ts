@@ -39,6 +39,13 @@ export interface Config {
    * Owner-approved band: 5000–6000 bps (0.50–0.60). Default 5500.
    */
   jitoTipFractionBps: number;
+  /**
+   * Shadow-mode simulation owner (a live-discovered funded mainnet wallet,
+   * see scripts/find-surrogate.ts). Shadow builds are UNSIGNED with this
+   * owner's ATAs so simulation reflects the strategy, not our unfunded
+   * wallet. Read-only borrowing: nothing is ever sent.
+   */
+  surrogateOwner?: string;
   raydiumProgramId: string;
   orcaProgramId: string;
   raydiumPoolAddress?: string;
@@ -191,6 +198,7 @@ export function loadConfig(env: Env): Config {
       ? { estTxFeeQuote: BigInt(env.EST_TX_FEE_QUOTE) }
       : {}),
     jitoTipFractionBps: Math.round(jitoTipFraction * 10_000),
+    ...(env.SURROGATE_OWNER ? { surrogateOwner: env.SURROGATE_OWNER } : {}),
     raydiumProgramId:
       env.RAYDIUM_CPMM_PROGRAM_ID ??
       RAYDIUM_CPMM_PROGRAM[cluster] ??
