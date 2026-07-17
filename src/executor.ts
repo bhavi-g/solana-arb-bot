@@ -49,6 +49,8 @@ export interface ExecuteMeta {
    * attempt record. Optional so Phase-1 style callers/tests are unchanged.
    */
   computeCosts?: (cuLimit: number | null) => NonNullable<AttemptRecord["costs"]>;
+  /** Detection-latency measurements, merged into the record's detail. */
+  latency?: { dataAgeMs: number; detectComputeMs: number };
 }
 
 /** Thrown by the shadow-mode send transport: reaching it means layer 2 failed. */
@@ -76,6 +78,7 @@ export async function execute(
       quoteOut: opp.quoteOut,
       estNetProfit: opp.estNetProfit,
       minProfitThreshold: opp.minProfitThreshold,
+      ...(meta.latency ? { latency: meta.latency } : {}),
     },
   } as const;
 

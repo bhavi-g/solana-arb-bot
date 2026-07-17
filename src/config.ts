@@ -20,7 +20,7 @@ export interface Config {
   rpcUrl: string;
   commitment: Commitment;
   keypairPath: string;
-  dataSource: "polling" | "synthetic";
+  dataSource: "polling" | "synthetic" | "geyser";
   tradeSizeQuote: bigint;
   minProfitThresholdQuote: bigint;
   slippageToleranceBps: number;
@@ -46,6 +46,13 @@ export interface Config {
    * wallet. Read-only borrowing: nothing is ever sent.
    */
   surrogateOwner?: string;
+  /**
+   * Yellowstone Geyser gRPC endpoint (DATA_SOURCE=geyser). Code-complete
+   * but NOT runnable until the owner provides one — Geyser is not on the
+   * Helius free tier and procurement is a stop-and-ask money item.
+   */
+  geyserEndpoint?: string;
+  geyserXToken?: string;
   raydiumProgramId: string;
   orcaProgramId: string;
   raydiumPoolAddress?: string;
@@ -130,12 +137,23 @@ export function loadConfig(env: Env): Config {
   }
 
   const dataSource = env.DATA_SOURCE!;
-  if (dataSource !== "polling" && dataSource !== "synthetic") {
+  if (
+    dataSource !== "polling" &&
+    dataSource !== "synthetic" &&
+    dataSource !== "geyser"
+  ) {
     throw new ConfigError(
-      `DATA_SOURCE must be "polling" or "synthetic", got "${dataSource}"`,
+      `DATA_SOURCE must be "polling", "synthetic", or "geyser", got "${dataSource}"`,
     );
   }
-  if (dataSource === "polling") {
+  if (dataSource === "geyser" && !env.GEYSER_ENDPOINT) {
+    throw new ConfigError(
+      "DATA_SOURCE=geyser requires GEYSER_ENDPOINT (owner decision: " +
+        "endpoint procurement is deferred — this source is code-complete " +
+        "but not runnable until an endpoint exists)",
+    );
+  }
+  if (dataSource === "polling" || dataSource === "geyser") {
     const pollingKeys = [
       "RAYDIUM_POOL_ADDRESS",
       "ORCA_POOL_ADDRESS",
@@ -146,7 +164,7 @@ export function loadConfig(env: Env): Config {
     ].filter((k) => !env[k]);
     if (pollingKeys.length > 0) {
       throw new ConfigError(
-        `DATA_SOURCE=polling requires: ${pollingKeys.join(", ")}`,
+        `DATA_SOURCE=${dataSource} requires: ${pollingKeys.join(", ")}`,
       );
     }
   }
@@ -199,6 +217,8 @@ export function loadConfig(env: Env): Config {
       : {}),
     jitoTipFractionBps: Math.round(jitoTipFraction * 10_000),
     ...(env.SURROGATE_OWNER ? { surrogateOwner: env.SURROGATE_OWNER } : {}),
+    ...(env.GEYSER_ENDPOINT ? { geyserEndpoint: env.GEYSER_ENDPOINT } : {}),
+    ...(env.GEYSER_X_TOKEN ? { geyserXToken: env.GEYSER_X_TOKEN } : {}),
     raydiumProgramId:
       env.RAYDIUM_CPMM_PROGRAM_ID ??
       RAYDIUM_CPMM_PROGRAM[cluster] ??

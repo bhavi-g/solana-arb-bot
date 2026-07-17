@@ -23,6 +23,10 @@ import { loadOrCreateKeypair } from "./wallet.js";
 import { RateLimiter } from "./datasource/rateLimiter.js";
 import type { PriceSource, SnapshotPair } from "./datasource/PriceSource.js";
 import { PollingPriceSource } from "./datasource/polling.js";
+import {
+  createYellowstoneTransport,
+  GeyserPriceSource,
+} from "./datasource/geyser.js";
 import { SyntheticPriceSource, SOL_USDC_DEVNET } from "./datasource/synthetic.js";
 import { decodeRaydiumCpmmPool, type RaydiumCpmmPoolState } from "./decode/raydiumCpmm.js";
 import { decodeWhirlpool, type WhirlpoolState } from "./decode/orcaWhirlpool.js";
@@ -119,12 +123,20 @@ async function main(): Promise<void> {
     // there stays a separate step and never sees the headroom.
     const estTxFeeQuote =
       cfg.estTxFeeQuote ?? lamportsFeeToQuote(feeLamportsWithHeadroom, pair.cpmm);
+    const detectStart = performance.now();
     const decision = detect(pair.cpmm, pair.whirlpool, {
       tradeSizeQuote: cfg.tradeSizeQuote,
       minProfitThresholdQuote: cfg.minProfitThresholdQuote,
       slippageToleranceBps: cfg.slippageToleranceBps,
       estTxFeeQuote,
     });
+    // Detection-latency instrumentation (Phase-2 deliverable): how stale
+    // was the freshest input, and how long did the decision itself take.
+    const latency = {
+      dataAgeMs:
+        Date.now() - Math.max(pair.cpmm.fetchedAtMs, pair.whirlpool.fetchedAtMs),
+      detectComputeMs: performance.now() - detectStart,
+    };
 
     if (decision.decision === "no-opportunity") {
       logger.record({
@@ -135,6 +147,7 @@ async function main(): Promise<void> {
         gapBps: decision.gapBps,
         decision: decision.decision,
         reason: decision.reason,
+        detail: { latency },
       });
       return;
     }
@@ -153,6 +166,7 @@ async function main(): Promise<void> {
         dataSource: source.name,
         slot: pair.cpmm.slot,
         sendEnabled: cfg.sendEnabled,
+        latency,
         computeCosts: (cuLimit) =>
           computeCosts(
             {
@@ -276,7 +290,7 @@ async function setUp(
   const raydiumProgramId = new PublicKey(cfg.raydiumProgramId);
   const orcaProgramId = new PublicKey(cfg.orcaProgramId);
 
-  if (cfg.dataSource === "polling") {
+  if (cfg.dataSource === "polling" || cfg.dataSource === "geyser") {
     const pair = {
       baseMint: cfg.baseMint!,
       quoteMint: cfg.quoteMint!,
@@ -297,16 +311,47 @@ async function setUp(
           "will fail on wallet errors (unfunded local wallet)",
       );
     }
-    const source = new PollingPriceSource(
-      connection,
-      {
-        raydiumPoolAddress: cfg.raydiumPoolAddress!,
-        orcaPoolAddress: cfg.orcaPoolAddress!,
-        pair,
-        pollIntervalMs: cfg.pollIntervalMs,
-      },
-      limiter,
-    );
+    const source: PriceSource =
+      cfg.dataSource === "geyser"
+        ? new GeyserPriceSource(
+            await createYellowstoneTransport(
+              cfg.geyserEndpoint!,
+              cfg.geyserXToken,
+            ),
+            {
+              raydiumPoolAddress: cfg.raydiumPoolAddress!,
+              orcaPoolAddress: cfg.orcaPoolAddress!,
+              pair,
+              decodeCpmm: () => {
+                // CPMM reserves live in vault token accounts, not the pool
+                // account; a runnable Geyser build must also subscribe both
+                // vaults, which needs a live endpoint to verify honestly.
+                // Deliberate Phase-2 code-only gap (see geyser.ts header).
+                throw new Error(
+                  "geyser vault subscription not wired — see src/datasource/geyser.ts",
+                );
+              },
+              decodeWhirl: (data) => {
+                const s = decodeWhirlpool(Buffer.from(data));
+                return {
+                  sqrtPriceX64: s.sqrtPriceX64,
+                  liquidity: s.liquidity,
+                  tickCurrentIndex: s.tickCurrentIndex,
+                  feeBps: s.feeBps,
+                };
+              },
+            },
+          )
+        : new PollingPriceSource(
+            connection,
+            {
+              raydiumPoolAddress: cfg.raydiumPoolAddress!,
+              orcaPoolAddress: cfg.orcaPoolAddress!,
+              pair,
+              pollIntervalMs: cfg.pollIntervalMs,
+            },
+            limiter,
+          );
 
     // Static pool metadata for the tx builder, fetched once.
     const raydiumPool = new PublicKey(cfg.raydiumPoolAddress!);

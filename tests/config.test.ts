@@ -131,6 +131,22 @@ describe("sendEnabled derivation (ADR-0008 structural send-disable)", () => {
     expect(() => loadConfig(shadowEnv({ SEND_ENABLED: "false" }))).toThrow(/no such switch|not a switch/i);
   });
 
+  it("DATA_SOURCE=geyser requires GEYSER_ENDPOINT plus the polling pool keys", () => {
+    expect(() =>
+      loadConfig(
+        shadowEnv({
+          DATA_SOURCE: "geyser",
+          RAYDIUM_POOL_ADDRESS: "R",
+          ORCA_POOL_ADDRESS: "O",
+          BASE_MINT: "B",
+          QUOTE_MINT: "Q",
+          BASE_DECIMALS: "9",
+          QUOTE_DECIMALS: "6",
+        }),
+      ),
+    ).toThrow(/GEYSER_ENDPOINT/);
+  });
+
   it("JITO_TIP_FRACTION defaults to 0.55 and must stay in [0.50, 0.60]", () => {
     expect(loadConfig(shadowEnv()).jitoTipFractionBps).toBe(5500);
     expect(loadConfig(shadowEnv({ JITO_TIP_FRACTION: "0.6" })).jitoTipFractionBps).toBe(6000);
