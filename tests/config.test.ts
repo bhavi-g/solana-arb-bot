@@ -87,3 +87,47 @@ describe("loadConfig", () => {
     expect(() => loadConfig(validEnv({ MAX_RPS: "25" }))).toThrow(/10/);
   });
 });
+
+describe("sendEnabled derivation (ADR-0008 structural send-disable)", () => {
+  const shadowEnv = (over: Record<string, string> = {}) => ({
+    PHASE: "2",
+    CLUSTER: "mainnet-beta",
+    RPC_URL: "https://rpc.example.com",
+    KEYPAIR_PATH: "keypairs/mainnet-shadow.json",
+    DATA_SOURCE: "synthetic",
+    TRADE_SIZE_QUOTE: "10000000",
+    MIN_PROFIT_THRESHOLD_QUOTE: "10000",
+    SLIPPAGE_TOLERANCE_BPS: "50",
+    MAX_RPS: "8",
+    POLL_INTERVAL_MS: "1000",
+    ...over,
+  });
+
+  it("PHASE=2 on mainnet loads (guard is phase<2 only) with sendEnabled=false", () => {
+    const cfg = loadConfig(shadowEnv());
+    expect(cfg.sendEnabled).toBe(false);
+  });
+
+  it("PHASE=2 is shadow even on devnet", () => {
+    const cfg = loadConfig(
+      shadowEnv({ CLUSTER: "devnet", RPC_URL: "https://api.devnet.solana.com" }),
+    );
+    expect(cfg.sendEnabled).toBe(false);
+  });
+
+  it("PHASE=1 devnet keeps sendEnabled=true (Phase 1 behavior unchanged)", () => {
+    const cfg = loadConfig(
+      shadowEnv({ PHASE: "1", CLUSTER: "devnet", RPC_URL: "https://api.devnet.solana.com" }),
+    );
+    expect(cfg.sendEnabled).toBe(true);
+  });
+
+  it("PHASE=3 refuses to start: live sending is not implemented", () => {
+    expect(() => loadConfig(shadowEnv({ PHASE: "3" }))).toThrow(/not implemented/i);
+  });
+
+  it("any SEND_ENABLED env var is rejected — no such switch exists", () => {
+    expect(() => loadConfig(shadowEnv({ SEND_ENABLED: "true" }))).toThrow(/no such switch|not a switch/i);
+    expect(() => loadConfig(shadowEnv({ SEND_ENABLED: "false" }))).toThrow(/no such switch|not a switch/i);
+  });
+});

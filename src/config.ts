@@ -10,6 +10,12 @@ export type Env = Record<string, string | undefined>;
 
 export interface Config {
   phase: number;
+  /**
+   * Derived, never read from the environment (ADR-0008). False whenever
+   * PHASE=2 (shadow mode). PHASE>=3 refuses to start entirely — live
+   * sending does not exist in this version of the codebase.
+   */
+  sendEnabled: boolean;
   cluster: string;
   rpcUrl: string;
   commitment: Commitment;
@@ -75,6 +81,21 @@ export function loadConfig(env: Env): Config {
   const phase = Number(env.PHASE);
   const cluster = env.CLUSTER!;
 
+  // ADR-0008: sending is derived from PHASE and cannot be switched on.
+  if (env.SEND_ENABLED !== undefined) {
+    throw new ConfigError(
+      "SEND_ENABLED is not a switch that exists: sending is derived from " +
+        "PHASE and cannot be enabled by configuration (ADR-0008).",
+    );
+  }
+  if (phase >= 3) {
+    throw new ConfigError(
+      `PHASE=${phase}: Phase 3+ (live mainnet sending) is not implemented ` +
+        "in this version of the codebase. Enabling it requires a code " +
+        "change plus an ADR (ADR-0008).",
+    );
+  }
+
   const rpcUrl =
     env.RPC_URL ??
     (env.HELIUS_API_KEY
@@ -133,6 +154,7 @@ export function loadConfig(env: Env): Config {
 
   return {
     phase,
+    sendEnabled: phase < 2,
     cluster,
     rpcUrl,
     // ADR-0003: "processed" everywhere; not configurable on purpose.
