@@ -60,6 +60,14 @@ export interface WhirlpoolSnapshot extends SnapshotBase {
 export interface ArbDirection {
   buyOn: Dex;
   sellOn: Dex;
+  /**
+   * Pool addresses of the buy/sell venues. Required to disambiguate when
+   * both venues share a DEX (two-Orca shadow mode): `buyOn`/`sellOn` are
+   * then both "orca-whirlpool", so only the address identifies the pool.
+   * Optional so pre-existing single-DEX callers/tests are unaffected.
+   */
+  buyPoolAddress?: string;
+  sellPoolAddress?: string;
 }
 
 /** Result of evaluating a pair of snapshots. */

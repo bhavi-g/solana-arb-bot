@@ -75,6 +75,8 @@ describe("detect", () => {
     expect(d.direction).toEqual({
       buyOn: "raydium-cpmm",
       sellOn: "orca-whirlpool",
+      buyPoolAddress: "RayPool111",
+      sellPoolAddress: "OrcaPool111",
     });
     expect(d.quoteIn).toBe(1_000_000n);
     expect(d.baseOut).toBe(1_249_998n);
@@ -90,6 +92,8 @@ describe("detect", () => {
     expect(d.direction).toEqual({
       buyOn: "orca-whirlpool",
       sellOn: "raydium-cpmm",
+      buyPoolAddress: "OrcaPool111",
+      sellPoolAddress: "RayPool111",
     });
     expect(d.estNetProfit > 0n).toBe(true);
   });

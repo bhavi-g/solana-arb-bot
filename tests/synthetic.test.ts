@@ -48,7 +48,7 @@ describe("SyntheticPriceSource", () => {
     const opp = decisions[2]!;
     if (opp.decision !== "opportunity") throw new Error("unreachable");
     // SOL is cheap on the stale CPMM: buy there, sell on the whirlpool
-    expect(opp.direction).toEqual({
+    expect(opp.direction).toMatchObject({
       buyOn: "raydium-cpmm",
       sellOn: "orca-whirlpool",
     });

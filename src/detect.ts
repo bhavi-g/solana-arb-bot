@@ -55,7 +55,12 @@ export function detect(
   if (best.estNetProfit >= p.minProfitThresholdQuote) {
     return {
       decision: "opportunity",
-      direction: { buyOn: best.buyPool.dex, sellOn: best.sellPool.dex },
+      direction: {
+        buyOn: best.buyPool.dex,
+        sellOn: best.sellPool.dex,
+        buyPoolAddress: best.buyPool.poolAddress,
+        sellPoolAddress: best.sellPool.poolAddress,
+      },
       gapBps,
       quoteIn: p.tradeSizeQuote,
       baseOut: best.baseOut,
