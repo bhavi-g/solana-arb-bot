@@ -4,7 +4,12 @@
  * across the source/detection/execution/logging boundaries.
  */
 import "dotenv/config";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  type VersionedTransaction,
+} from "@solana/web3.js";
 import { loadConfig, type Config } from "./config.js";
 import {
   computeCosts,
@@ -23,6 +28,7 @@ import { loadOrCreateKeypair } from "./wallet.js";
 import { RateLimiter } from "./datasource/rateLimiter.js";
 import type { PriceSource, SnapshotPair } from "./datasource/PriceSource.js";
 import { PollingPriceSource } from "./datasource/polling.js";
+import { OrcaOrcaPollingSource } from "./datasource/orcaOrcaPolling.js";
 import {
   createYellowstoneTransport,
   GeyserPriceSource,
@@ -31,6 +37,10 @@ import { SyntheticPriceSource, SOL_USDC_DEVNET } from "./datasource/synthetic.js
 import { decodeRaydiumCpmmPool, type RaydiumCpmmPoolState } from "./decode/raydiumCpmm.js";
 import { decodeWhirlpool, type WhirlpoolState } from "./decode/orcaWhirlpool.js";
 import { buildArbTransaction, TOKEN_PROGRAM_ID, type ArbBuildContext } from "./txbuilder/index.js";
+import {
+  buildTwoWhirlpoolArbTransaction,
+  type TwoWhirlpoolBuildContext,
+} from "./txbuilder/twoWhirlpool.js";
 import type { Opportunity, PairInfo, PoolSnapshot } from "./types.js";
 
 async function main(): Promise<void> {
@@ -101,7 +111,7 @@ async function main(): Promise<void> {
         },
   };
 
-  const { source, buildMeta, feeLamportsWithHeadroom } = await setUp(
+  const { source, buildTx, feeLamportsWithHeadroom } = await setUp(
     cfg,
     connection,
     limiter,
@@ -155,10 +165,9 @@ async function main(): Promise<void> {
     await limiter.acquire();
     const { blockhash } = await connection.getLatestBlockhash();
     const cuPriceNow = await currentCuPrice();
-    const ctx = buildMeta(pair, blockhash);
     await execute(
       gatedRpc,
-      (cuLimit) => buildArbTransaction(ctx, decision, cuLimit),
+      (cuLimit) => buildTx(pair, blockhash, decision, cuLimit),
       decision,
       logger,
       {
@@ -185,10 +194,21 @@ async function main(): Promise<void> {
   console.log("[main] source finished; exiting.");
 }
 
+/**
+ * Builds the arb transaction for the freshest snapshot pair. Encapsulates
+ * the venue-specific context + builder (CPMM-vs-Orca or two-Orca), so the
+ * run loop and fee sampler stay venue-agnostic.
+ */
+type BuildTx = (
+  pair: SnapshotPair,
+  blockhash: string,
+  opp: Opportunity,
+  cuLimit?: number,
+) => VersionedTransaction;
+
 interface Setup {
   source: PriceSource;
-  /** Produces the txbuilder context for the freshest snapshot pair. */
-  buildMeta: (pair: SnapshotPair, blockhash: string) => ArbBuildContext;
+  buildTx: BuildTx;
   /**
    * Base tx fee in lamports with the ADR-0007 +20% headroom already applied,
    * fetched once at startup. main.ts converts this to quote units per cycle.
@@ -207,9 +227,7 @@ async function resolveStartupFeeLamports(
   cfg: Config,
   connection: Connection,
   limiter: RateLimiter,
-  buildMeta: (pair: SnapshotPair, blockhash: string) => ArbBuildContext,
-  pair: PairInfo,
-  sampleTickIndex: number,
+  buildSampleTx: (blockhash: string) => VersionedTransaction,
 ): Promise<bigint> {
   if (cfg.estTxFeeQuote !== undefined) {
     console.log(
@@ -219,23 +237,10 @@ async function resolveStartupFeeLamports(
     return 0n;
   }
 
-  const sampleOpp: Opportunity = {
-    decision: "opportunity",
-    direction: { buyOn: "raydium-cpmm", sellOn: "orca-whirlpool" },
-    gapBps: 0,
-    quoteIn: cfg.tradeSizeQuote,
-    baseOut: 1n,
-    quoteOut: cfg.tradeSizeQuote,
-    estNetProfit: 0n,
-    minProfitThreshold: cfg.minProfitThresholdQuote,
-  };
-  const samplePair = sampleSnapshotPair(pair, sampleTickIndex);
-
   const fetchFee = async (): Promise<number | null> => {
     await limiter.acquire();
     const { blockhash } = await connection.getLatestBlockhash();
-    const ctx = buildMeta(samplePair, blockhash);
-    const tx = buildArbTransaction(ctx, sampleOpp);
+    const tx = buildSampleTx(blockhash);
     await limiter.acquire();
     const resp = await connection.getFeeForMessage(tx.message);
     return resp.value;
@@ -249,6 +254,29 @@ async function resolveStartupFeeLamports(
       `+20% headroom -> ${withHeadroom} lamports (ADR-0007)`,
   );
   return withHeadroom;
+}
+
+/** Sample opportunity used only to shape the fee-estimate transaction. */
+function sampleOpportunity(
+  cfg: Config,
+  buyPoolAddress?: string,
+  sellPoolAddress?: string,
+): Opportunity {
+  return {
+    decision: "opportunity",
+    direction: {
+      buyOn: "raydium-cpmm",
+      sellOn: "orca-whirlpool",
+      ...(buyPoolAddress ? { buyPoolAddress } : {}),
+      ...(sellPoolAddress ? { sellPoolAddress } : {}),
+    },
+    gapBps: 0,
+    quoteIn: cfg.tradeSizeQuote,
+    baseOut: 1n,
+    quoteOut: cfg.tradeSizeQuote,
+    estNetProfit: 0n,
+    minProfitThreshold: cfg.minProfitThresholdQuote,
+  };
 }
 
 /** Minimal snapshot pair used only to shape the sample fee transaction. */
@@ -290,6 +318,20 @@ async function setUp(
   const raydiumProgramId = new PublicKey(cfg.raydiumProgramId);
   const orcaProgramId = new PublicKey(cfg.orcaProgramId);
 
+  // Shadow mode simulates as a live-discovered funded surrogate so
+  // simulation results reflect the strategy, not our unfunded wallet.
+  // The resulting tx is UNSIGNED (see the txbuilder payer union).
+  const buildPayer: Keypair | PublicKey =
+    !cfg.sendEnabled && cfg.surrogateOwner
+      ? new PublicKey(cfg.surrogateOwner)
+      : wallet;
+  if (!cfg.sendEnabled && cfg.dataSource !== "synthetic" && !cfg.surrogateOwner) {
+    console.log(
+      "[main] WARNING: shadow mode without SURROGATE_OWNER — simulations " +
+        "will fail on wallet errors (unfunded local wallet)",
+    );
+  }
+
   if (cfg.dataSource === "polling" || cfg.dataSource === "geyser") {
     const pair = {
       baseMint: cfg.baseMint!,
@@ -298,26 +340,15 @@ async function setUp(
       quoteDecimals: cfg.quoteDecimals!,
     };
 
-    // Shadow mode simulates as a live-discovered funded surrogate so
-    // simulation results reflect the strategy, not our unfunded wallet.
-    // The resulting tx is UNSIGNED (see ArbBuildContext.payer).
-    const buildPayer: Keypair | PublicKey =
-      !cfg.sendEnabled && cfg.surrogateOwner
-        ? new PublicKey(cfg.surrogateOwner)
-        : wallet;
-    if (!cfg.sendEnabled && !cfg.surrogateOwner) {
-      console.log(
-        "[main] WARNING: shadow mode without SURROGATE_OWNER — simulations " +
-          "will fail on wallet errors (unfunded local wallet)",
-      );
+    if (cfg.venue === "orca-orca") {
+      return setUpOrcaOrca(cfg, connection, limiter, buildPayer, orcaProgramId, pair);
     }
+
+    // venue = cpmm-orca (Raydium CPMM vs Orca Whirlpool).
     const source: PriceSource =
       cfg.dataSource === "geyser"
         ? new GeyserPriceSource(
-            await createYellowstoneTransport(
-              cfg.geyserEndpoint!,
-              cfg.geyserXToken,
-            ),
+            await createYellowstoneTransport(cfg.geyserEndpoint!, cfg.geyserXToken),
             {
               raydiumPoolAddress: cfg.raydiumPoolAddress!,
               orcaPoolAddress: cfg.orcaPoolAddress!,
@@ -367,7 +398,7 @@ async function setUp(
     const rayState = decodeRaydiumCpmmPool(rayAcc.data);
     const orcaState = decodeWhirlpool(orcaAcc.data);
 
-    const buildMeta = (snap: SnapshotPair, blockhash: string): ArbBuildContext => ({
+    const makeCtx = (snap: SnapshotPair, blockhash: string): ArbBuildContext => ({
       payer: buildPayer,
       recentBlockhash: blockhash,
       pair,
@@ -382,17 +413,22 @@ async function setUp(
             : orcaState.tickCurrentIndex,
       },
     });
+    const buildTx: BuildTx = (snap, blockhash, opp, cuLimit) =>
+      buildArbTransaction(makeCtx(snap, blockhash), opp, cuLimit);
 
     const feeLamportsWithHeadroom = await resolveStartupFeeLamports(
       cfg,
       connection,
       limiter,
-      buildMeta,
-      pair,
-      orcaState.tickCurrentIndex,
+      (blockhash) =>
+        buildTx(
+          sampleSnapshotPair(pair, orcaState.tickCurrentIndex),
+          blockhash,
+          sampleOpportunity(cfg),
+        ),
     );
 
-    return { source, buildMeta, feeLamportsWithHeadroom };
+    return { source, buildTx, feeLamportsWithHeadroom };
   }
 
   // Synthetic mode: pool metadata is generated (the pools do not exist on
@@ -427,7 +463,7 @@ async function setUp(
   const synthRayPool = Keypair.generate().publicKey;
   const synthOrcaPool = Keypair.generate().publicKey;
 
-  const buildMeta = (snap: SnapshotPair, blockhash: string): ArbBuildContext => ({
+  const makeSynthCtx = (snap: SnapshotPair, blockhash: string): ArbBuildContext => ({
     payer: wallet,
     recentBlockhash: blockhash,
     pair: SOL_USDC_DEVNET,
@@ -442,17 +478,108 @@ async function setUp(
           : synthOrca.tickCurrentIndex,
     },
   });
+  const buildTx: BuildTx = (snap, blockhash, opp, cuLimit) =>
+    buildArbTransaction(makeSynthCtx(snap, blockhash), opp, cuLimit);
 
   const feeLamportsWithHeadroom = await resolveStartupFeeLamports(
     cfg,
     connection,
     limiter,
-    buildMeta,
-    SOL_USDC_DEVNET,
-    synthOrca.tickCurrentIndex,
+    (blockhash) =>
+      buildTx(
+        sampleSnapshotPair(SOL_USDC_DEVNET, synthOrca.tickCurrentIndex),
+        blockhash,
+        sampleOpportunity(cfg),
+      ),
   );
 
-  return { source: new SyntheticPriceSource(), buildMeta, feeLamportsWithHeadroom };
+  return { source: new SyntheticPriceSource(), buildTx, feeLamportsWithHeadroom };
+}
+
+/**
+ * Two-Orca venue setup (Phase-2 interim). Polls two whirlpools and builds
+ * two-whirlpool arb transactions. Geyser is not wired for this venue yet.
+ */
+async function setUpOrcaOrca(
+  cfg: Config,
+  connection: Connection,
+  limiter: RateLimiter,
+  buildPayer: Keypair | PublicKey,
+  orcaProgramId: PublicKey,
+  pair: PairInfo,
+): Promise<Setup> {
+  if (cfg.dataSource === "geyser") {
+    throw new Error(
+      "VENUE=orca-orca is only wired for DATA_SOURCE=polling (a two-whirlpool " +
+        "Geyser source is not implemented yet)",
+    );
+  }
+
+  const poolA = new PublicKey(cfg.orcaPoolAddress!);
+  const poolB = new PublicKey(cfg.orcaPoolAddressB!);
+  const source = new OrcaOrcaPollingSource(
+    connection,
+    {
+      whirlpoolAAddress: poolA.toBase58(),
+      whirlpoolBAddress: poolB.toBase58(),
+      pair,
+      pollIntervalMs: cfg.pollIntervalMs,
+    },
+    limiter,
+  );
+
+  await limiter.acquire();
+  const [accA, accB] = await connection.getMultipleAccountsInfo([poolA, poolB]);
+  if (!accA || !accB) {
+    throw new Error("configured orca-orca pool accounts not found on this cluster");
+  }
+  const stateA = decodeWhirlpool(accA.data);
+  const stateB = decodeWhirlpool(accB.data);
+
+  const makeCtx = (
+    snap: SnapshotPair,
+    blockhash: string,
+  ): TwoWhirlpoolBuildContext => ({
+    payer: buildPayer,
+    recentBlockhash: blockhash,
+    pair,
+    whirlpoolA: {
+      programId: orcaProgramId,
+      poolAddress: poolA,
+      state: stateA,
+      tickCurrentIndex:
+        snap.cpmm.kind === "whirlpool" ? snap.cpmm.tickCurrentIndex : stateA.tickCurrentIndex,
+    },
+    whirlpoolB: {
+      programId: orcaProgramId,
+      poolAddress: poolB,
+      state: stateB,
+      tickCurrentIndex:
+        snap.whirlpool.kind === "whirlpool"
+          ? snap.whirlpool.tickCurrentIndex
+          : stateB.tickCurrentIndex,
+    },
+  });
+  const buildTx: BuildTx = (snap, blockhash, opp, cuLimit) =>
+    buildTwoWhirlpoolArbTransaction(makeCtx(snap, blockhash), opp, cuLimit);
+
+  const feeLamportsWithHeadroom = await resolveStartupFeeLamports(
+    cfg,
+    connection,
+    limiter,
+    (blockhash) =>
+      buildTx(
+        sampleSnapshotPair(pair, stateA.tickCurrentIndex),
+        blockhash,
+        sampleOpportunity(cfg, poolA.toBase58(), poolB.toBase58()),
+      ),
+  );
+
+  console.log(
+    `[main] VENUE=orca-orca: ${poolA.toBase58()} (fee ${stateA.feeBps}bps) vs ` +
+      `${poolB.toBase58()} (fee ${stateB.feeBps}bps)`,
+  );
+  return { source, buildTx, feeLamportsWithHeadroom };
 }
 
 main().catch((e) => {

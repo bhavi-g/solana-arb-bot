@@ -21,6 +21,14 @@ export interface Config {
   commitment: Commitment;
   keypairPath: string;
   dataSource: "polling" | "synthetic" | "geyser";
+  /**
+   * Which two venues to arbitrage between. "cpmm-orca" (default) is
+   * Raydium CPMM vs Orca Whirlpool. "orca-orca" is two Orca Whirlpools at
+   * different fee tiers — the Phase-2 interim venue (docs/phases/
+   * phase-2-mainnet-shadow-mode.md) while a Raydium CLMM decoder is built.
+   */
+  venue: "cpmm-orca" | "orca-orca";
+  orcaPoolAddressB?: string;
   tradeSizeQuote: bigint;
   minProfitThresholdQuote: bigint;
   slippageToleranceBps: number;
@@ -153,10 +161,20 @@ export function loadConfig(env: Env): Config {
         "but not runnable until an endpoint exists)",
     );
   }
+  const venue = env.VENUE ?? "cpmm-orca";
+  if (venue !== "cpmm-orca" && venue !== "orca-orca") {
+    throw new ConfigError(
+      `VENUE must be "cpmm-orca" or "orca-orca", got "${venue}"`,
+    );
+  }
+
   if (dataSource === "polling" || dataSource === "geyser") {
+    const venueKeys =
+      venue === "orca-orca"
+        ? ["ORCA_POOL_ADDRESS", "ORCA_POOL_ADDRESS_B"]
+        : ["RAYDIUM_POOL_ADDRESS", "ORCA_POOL_ADDRESS"];
     const pollingKeys = [
-      "RAYDIUM_POOL_ADDRESS",
-      "ORCA_POOL_ADDRESS",
+      ...venueKeys,
       "BASE_MINT",
       "QUOTE_MINT",
       "BASE_DECIMALS",
@@ -164,7 +182,7 @@ export function loadConfig(env: Env): Config {
     ].filter((k) => !env[k]);
     if (pollingKeys.length > 0) {
       throw new ConfigError(
-        `DATA_SOURCE=${dataSource} requires: ${pollingKeys.join(", ")}`,
+        `DATA_SOURCE=${dataSource} VENUE=${venue} requires: ${pollingKeys.join(", ")}`,
       );
     }
   }
@@ -205,6 +223,7 @@ export function loadConfig(env: Env): Config {
     commitment: "processed",
     keypairPath: env.KEYPAIR_PATH!,
     dataSource,
+    venue,
     tradeSizeQuote: BigInt(env.TRADE_SIZE_QUOTE!),
     minProfitThresholdQuote,
     slippageToleranceBps: Number(env.SLIPPAGE_TOLERANCE_BPS),
@@ -228,6 +247,7 @@ export function loadConfig(env: Env): Config {
       ? { raydiumPoolAddress: env.RAYDIUM_POOL_ADDRESS }
       : {}),
     ...(env.ORCA_POOL_ADDRESS ? { orcaPoolAddress: env.ORCA_POOL_ADDRESS } : {}),
+    ...(env.ORCA_POOL_ADDRESS_B ? { orcaPoolAddressB: env.ORCA_POOL_ADDRESS_B } : {}),
     ...(env.BASE_MINT ? { baseMint: env.BASE_MINT } : {}),
     ...(env.QUOTE_MINT ? { quoteMint: env.QUOTE_MINT } : {}),
     ...(env.BASE_DECIMALS ? { baseDecimals: Number(env.BASE_DECIMALS) } : {}),

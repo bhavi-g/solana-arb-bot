@@ -131,6 +131,58 @@ describe("sendEnabled derivation (ADR-0008 structural send-disable)", () => {
     expect(() => loadConfig(shadowEnv({ SEND_ENABLED: "false" }))).toThrow(/no such switch|not a switch/i);
   });
 
+  it("VENUE=orca-orca requires two Orca pool addresses, not a Raydium pool", () => {
+    const orcaOrca = (over: Record<string, string> = {}) =>
+      shadowEnv({
+        DATA_SOURCE: "polling",
+        VENUE: "orca-orca",
+        BASE_MINT: "B",
+        QUOTE_MINT: "Q",
+        BASE_DECIMALS: "9",
+        QUOTE_DECIMALS: "6",
+        ...over,
+      });
+    // missing ORCA_POOL_ADDRESS_B → throws
+    expect(() =>
+      loadConfig(orcaOrca({ ORCA_POOL_ADDRESS: "A" })),
+    ).toThrow(/ORCA_POOL_ADDRESS_B/);
+    // both present → loads, venue recorded, no Raydium pool required
+    const cfg = loadConfig(
+      orcaOrca({ ORCA_POOL_ADDRESS: "A", ORCA_POOL_ADDRESS_B: "Bpool" }),
+    );
+    expect(cfg.venue).toBe("orca-orca");
+    expect(cfg.orcaPoolAddress).toBe("A");
+    expect(cfg.orcaPoolAddressB).toBe("Bpool");
+  });
+
+  it("defaults VENUE to cpmm-orca and still requires a Raydium pool", () => {
+    expect(
+      loadConfig(
+        shadowEnv({
+          DATA_SOURCE: "polling",
+          RAYDIUM_POOL_ADDRESS: "R",
+          ORCA_POOL_ADDRESS: "O",
+          BASE_MINT: "B",
+          QUOTE_MINT: "Q",
+          BASE_DECIMALS: "9",
+          QUOTE_DECIMALS: "6",
+        }),
+      ).venue,
+    ).toBe("cpmm-orca");
+    expect(() =>
+      loadConfig(
+        shadowEnv({
+          DATA_SOURCE: "polling",
+          ORCA_POOL_ADDRESS: "O",
+          BASE_MINT: "B",
+          QUOTE_MINT: "Q",
+          BASE_DECIMALS: "9",
+          QUOTE_DECIMALS: "6",
+        }),
+      ),
+    ).toThrow(/RAYDIUM_POOL_ADDRESS/);
+  });
+
   it("DATA_SOURCE=geyser requires GEYSER_ENDPOINT plus the polling pool keys", () => {
     expect(() =>
       loadConfig(
