@@ -35,3 +35,17 @@ before a single cent is risked.
 ## End-of-phase output
 Update session log with the four-part summary plus shadow-mode stats
 (opportunities/hour, avg simulated profit, revert rate).
+
+## Additional requirement (added after order-type/repo research)
+- Every logged shadow opportunity must report NET profit after: priority
+  fee, an assumed Jito tip (model as 50-60% of gross profit, since that's
+  the documented competitive rate), both pool fees, and slippage/price
+  impact on both legs — not just the raw price gap. Log both gross and
+  net so we can see how much the "real cost" model changes the picture.
+- Elevate the data-feed upgrade: attempt Yellowstone Geyser gRPC in THIS
+  phase (not deferred to Phase 4), specifically to get a real
+  route-detection latency number. This is now a phase-2 deliverable, not
+  just infrastructure roadmap.
+- Exit criteria addition: report the count/rate of opportunities that
+  are net-positive AFTER full realistic costs, not just gross-positive.
+  This number is the actual go/no-go signal for Phase 3.

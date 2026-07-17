@@ -19,6 +19,10 @@ only after each stage proves itself on real data with no money at risk.
   detected gap, simulated result, sent-or-aborted, and why
 - Secrets (Helius key, wallet key) live only in .env, gitignored from
   commit 1, never pasted into chat or committed
+- Profit calculations must ALWAYS include: priority fee, (eventual) Jito
+  tip estimate, both pool fees, and price impact/slippage on both legs —
+  not just the raw price gap. This is the #1 documented failure mode in
+  comparable open-source bots (hardcoded/optimistic profit math).
 
 ## Core mechanism (why this works)
 Atomic arbitrage = both legs of a trade (buy on DEX A, sell on DEX B) happen
@@ -34,6 +38,15 @@ at an average profit of about $1.58 each. This is a high-frequency,
 low-margin business, and viral "$1 to $400k" stories are outliers, not the
 norm — most bots in this space lose money once infrastructure costs are
 counted.
+
+## Order-type discipline (clarified)
+AMM swaps are inherently market orders (no order book, price is a curve
+function). Our on-chain minimum-out is the limit-order-style price
+protection layer. This is already correct and doesn't need to change.
+Phoenix (Solana's on-chain CLOB) offers true market/limit orders and is
+a candidate THIRD VENUE for Phase 3+, not Phase 2 — added because it's
+the classic "fast orderbook vs stale AMM" arb pattern, not because our
+current AMM-vs-AMM design is deficient.
 
 ## DEXs in scope
 - Raydium (CPMM/legacy AMM, and CLMM) — deep liquidity, constant-product math
