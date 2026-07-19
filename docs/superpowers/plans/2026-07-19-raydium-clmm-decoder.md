@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **Isolation boundary (hard):** NO edits to `src/datasource/orcaOrcaPolling.ts`, NO edits to `src/math/whirlpool.ts`, NO logic edits to `src/detect.ts`. The running 72h two-Orca shadow uses that code path and must stay untouched. Shared-file edits are limited to purely **additive** changes: a new function in `src/layout.ts`, and a union member + doc comment in `src/types.ts`.
+- **Isolation boundary (hard):** NO edits to `src/datasource/orcaOrcaPolling.ts`, NO edits to `src/math/whirlpool.ts`, NO logic edits to `src/detect.ts`. The running 72h two-Orca shadow uses that code path and must stay untouched. Shared-file edits are limited to purely **additive** changes: a new function in `src/decode/layout.ts`, and a union member + doc comment in `src/types.ts`.
 - **Dual-source offset verification (mandatory):** every offset in `src/decode/clmm.ts` must be verified against BOTH (1) the pinned raydium-clmm source commit (recorded in the file header) AND (2) live captured mainnet account data (Task 6 probe). Do not consider the decoder done on source-only or live-only.
 - **Orientation report (mandatory):** when Task 6 selects the real pool, report to the owner explicitly whether it is inverted (SOL as `mint_1`) or not — either way, stated, not silently handled.
 - **Money math:** token amounts are always `bigint` base units; fee rates are integer basis points (ppm ÷ 100). No floating point in trade math (`sqrtPriceX64ToPrice` is logging-only).
@@ -23,11 +23,11 @@
 ### Task 1: `readU32` little-endian primitive
 
 **Files:**
-- Modify: `src/layout.ts` (additive — new function only)
+- Modify: `src/decode/layout.ts` (additive — new function only)
 - Test: `tests/layout.test.ts` (create)
 
 **Interfaces:**
-- Produces: `readU32(data: Uint8Array, offset: number): number`
+- Produces: `readU32(data: Uint8Array, offset: number): number` (in `src/decode/layout.ts`)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -35,7 +35,7 @@ Create `tests/layout.test.ts`:
 
 ```typescript
 import { describe, expect, it } from "vitest";
-import { readU32 } from "../src/layout.js";
+import { readU32 } from "../src/decode/layout.js";
 
 describe("readU32", () => {
   it("reads a little-endian u32", () => {
@@ -57,7 +57,7 @@ Expected: FAIL — `readU32` is not exported from `../src/layout.js`.
 
 - [ ] **Step 3: Add the implementation**
 
-Append to `src/layout.ts`:
+Append to `src/decode/layout.ts`:
 
 ```typescript
 export function readU32(data: Uint8Array, offset: number): number {
@@ -73,7 +73,7 @@ Expected: PASS (2 tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/layout.ts tests/layout.test.ts
+git add src/decode/layout.ts tests/layout.test.ts
 git commit -m "T41: readU32 LE primitive (additive) for CLMM AmmConfig fee decode"
 ```
 
@@ -86,7 +86,7 @@ git commit -m "T41: readU32 LE primitive (additive) for CLMM AmmConfig fee decod
 - Test: `tests/clmm.test.ts` (create)
 
 **Interfaces:**
-- Consumes: `readU128`, `readI32`, `readU16` from `src/layout.ts`
+- Consumes: `readU128`, `readI32`, `readU16` from `src/decode/layout.ts` (same directory — import `./layout.js`)
 - Produces:
   - `interface ClmmPoolState { ammConfig: PublicKey; tokenMint0: PublicKey; tokenMint1: PublicKey; tokenVault0: PublicKey; tokenVault1: PublicKey; observationKey: PublicKey; mintDecimals0: number; mintDecimals1: number; tickSpacing: number; liquidity: bigint; sqrtPriceX64: bigint; tickCurrentIndex: number; }`
   - `decodeClmmPool(data: Uint8Array): ClmmPoolState`
@@ -187,7 +187,7 @@ Create `src/decode/clmm.ts`:
  * from Raydium CPMM's AmmConfig — do NOT reuse raydiumCpmm's decoder.
  */
 import { PublicKey } from "@solana/web3.js";
-import { readI32, readU16, readU128 } from "../layout.js";
+import { readI32, readU16, readU128 } from "./layout.js";
 
 // offsets after the 8-byte discriminator (repr(packed) PoolState):
 // bump [u8;1] @8, owner Pubkey @41 (skipped)
@@ -267,7 +267,7 @@ git commit -m "T42: decodeClmmPool — Raydium CLMM pool account (offsets from r
 - Test: `tests/clmm.test.ts` (add cases)
 
 **Interfaces:**
-- Consumes: `readU32` from `src/layout.ts` (Task 1)
+- Consumes: `readU32` from `src/decode/layout.ts` (Task 1; import `./layout.js`)
 - Produces: `decodeClmmAmmConfigFeeBps(data: Uint8Array): number` — trade fee in basis points
 - Produces: `const CLMM_AMM_CONFIG_MIN_LEN: number`
 
@@ -318,7 +318,7 @@ Expected: FAIL — cannot import `decodeClmmAmmConfigFeeBps`.
 Append to `src/decode/clmm.ts`:
 
 ```typescript
-import { readU32 } from "../layout.js";
+import { readU32 } from "./layout.js";
 
 // AmmConfig (repr(packed)): bump u8 @8, index u16 @9, owner @11,
 // protocol_fee_rate u32 @43, trade_fee_rate u32 @47 (ppm, denom 1e6).
@@ -335,7 +335,7 @@ export function decodeClmmAmmConfigFeeBps(data: Uint8Array): number {
 }
 ```
 
-Add `readU32` to the existing `../layout.js` import at the top of the file (merge with the `readI32, readU16, readU128` import).
+Add `readU32` to the existing `./layout.js` import at the top of the file (merge with the `readI32, readU16, readU128` import).
 
 - [ ] **Step 4: Run test to verify it passes**
 
