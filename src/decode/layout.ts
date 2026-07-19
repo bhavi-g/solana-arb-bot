@@ -20,6 +20,10 @@ export function readU128(data: Uint8Array, offset: number): bigint {
   return v;
 }
 
+export function readU32(data: Uint8Array, offset: number): number {
+  return new DataView(data.buffer, data.byteOffset + offset, 4).getUint32(0, true);
+}
+
 export function readPubkeyBytes(data: Uint8Array, offset: number): Uint8Array {
   return data.slice(offset, offset + 32);
 }
