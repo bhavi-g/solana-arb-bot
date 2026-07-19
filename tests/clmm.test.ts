@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   decodeClmmPool,
   CLMM_POOL_STATE_MIN_LEN,
+  decodeClmmAmmConfigFeeBps,
+  CLMM_AMM_CONFIG_MIN_LEN,
 } from "../src/decode/clmm.js";
 
 function writeU128(buf: Uint8Array, offset: number, v: bigint) {
@@ -14,6 +16,9 @@ function writeU16(buf: Uint8Array, offset: number, v: number) {
 }
 function writeI32(buf: Uint8Array, offset: number, v: number) {
   new DataView(buf.buffer, buf.byteOffset + offset, 4).setInt32(0, v, true);
+}
+function writeU32(buf: Uint8Array, offset: number, v: number) {
+  new DataView(buf.buffer, buf.byteOffset + offset, 4).setUint32(0, v, true);
 }
 
 describe("decodeClmmPool", () => {
@@ -55,5 +60,25 @@ describe("decodeClmmPool", () => {
 
   it("throws on a too-short buffer", () => {
     expect(() => decodeClmmPool(new Uint8Array(10))).toThrow(/too short/);
+  });
+});
+
+describe("decodeClmmAmmConfigFeeBps", () => {
+  it("converts trade_fee_rate ppm at offset 47 to basis points", () => {
+    const buf = new Uint8Array(CLMM_AMM_CONFIG_MIN_LEN);
+    writeU32(buf, 47, 2_500); // 2500 ppm = 0.25% = 25 bps
+    expect(decodeClmmAmmConfigFeeBps(buf)).toBe(25);
+  });
+
+  it("handles a 1 bps tier (100 ppm)", () => {
+    const buf = new Uint8Array(CLMM_AMM_CONFIG_MIN_LEN);
+    writeU32(buf, 47, 100); // 100 ppm = 0.01% = 1 bps
+    expect(decodeClmmAmmConfigFeeBps(buf)).toBe(1);
+  });
+
+  it("throws on a too-short buffer", () => {
+    expect(() => decodeClmmAmmConfigFeeBps(new Uint8Array(10))).toThrow(
+      /too short/,
+    );
   });
 });

@@ -15,7 +15,7 @@
  * from Raydium CPMM's AmmConfig — do NOT reuse raydiumCpmm's decoder.
  */
 import { PublicKey } from "@solana/web3.js";
-import { readI32, readU16, readU128 } from "./layout.js";
+import { readI32, readU16, readU128, readU32 } from "./layout.js";
 
 // offsets after the 8-byte discriminator (repr(packed) PoolState):
 // bump [u8;1] @8, owner Pubkey @41 (skipped)
@@ -71,4 +71,18 @@ export function decodeClmmPool(data: Uint8Array): ClmmPoolState {
     sqrtPriceX64: readU128(data, SQRT_PRICE_X64),
     tickCurrentIndex: readI32(data, TICK_CURRENT),
   };
+}
+
+// AmmConfig (repr(packed)): bump u8 @8, index u16 @9, owner @11,
+// protocol_fee_rate u32 @43, trade_fee_rate u32 @47 (ppm, denom 1e6).
+const TRADE_FEE_RATE = 47;
+
+export const CLMM_AMM_CONFIG_MIN_LEN = TRADE_FEE_RATE + 4;
+
+/** CLMM trade fee in basis points (on-chain rate is parts-per-million). */
+export function decodeClmmAmmConfigFeeBps(data: Uint8Array): number {
+  if (data.length < CLMM_AMM_CONFIG_MIN_LEN) {
+    throw new Error(`ClmmAmmConfig too short: ${data.length}`);
+  }
+  return readU32(data, TRADE_FEE_RATE) / 100;
 }
