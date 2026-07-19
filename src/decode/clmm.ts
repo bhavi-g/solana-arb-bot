@@ -16,6 +16,7 @@
  */
 import { PublicKey } from "@solana/web3.js";
 import { readI32, readU16, readU128, readU32 } from "./layout.js";
+import type { PairInfo, WhirlpoolSnapshot } from "../types.js";
 
 // offsets after the 8-byte discriminator (repr(packed) PoolState):
 // bump [u8;1] @8, owner Pubkey @41 (skipped)
@@ -85,4 +86,48 @@ export function decodeClmmAmmConfigFeeBps(data: Uint8Array): number {
     throw new Error(`ClmmAmmConfig too short: ${data.length}`);
   }
   return readU32(data, TRADE_FEE_RATE) / 100;
+}
+
+export interface ClmmSnapshotMeta {
+  poolAddress: string;
+  pair: PairInfo;
+  slot: number;
+  source: string;
+  fetchedAtMs: number;
+}
+
+/**
+ * Adapt a decoded CLMM pool into the shared WhirlpoolSnapshot (kind
+ * "whirlpool", dex "raydium-clmm"), so detect.ts consumes it with no
+ * changes. Asserts base=mint0 / quote=mint1 orientation; an inverted pool
+ * throws rather than being silently transformed (see the design spec).
+ */
+export function toClmmSnapshot(
+  state: ClmmPoolState,
+  feeBps: number,
+  meta: ClmmSnapshotMeta,
+): WhirlpoolSnapshot {
+  if (
+    state.tokenMint0.toBase58() !== meta.pair.baseMint ||
+    state.tokenMint1.toBase58() !== meta.pair.quoteMint
+  ) {
+    throw new Error(
+      `CLMM pool ${meta.poolAddress} orientation mismatch: expected ` +
+        `mint0=${meta.pair.baseMint} mint1=${meta.pair.quoteMint}, got ` +
+        `mint0=${state.tokenMint0.toBase58()} mint1=${state.tokenMint1.toBase58()}`,
+    );
+  }
+  return {
+    kind: "whirlpool",
+    dex: "raydium-clmm",
+    poolAddress: meta.poolAddress,
+    pair: meta.pair,
+    fetchedAtMs: meta.fetchedAtMs,
+    slot: meta.slot,
+    source: meta.source,
+    sqrtPriceX64: state.sqrtPriceX64,
+    liquidity: state.liquidity,
+    tickCurrentIndex: state.tickCurrentIndex,
+    feeBps,
+  };
 }

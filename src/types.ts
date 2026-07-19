@@ -5,7 +5,7 @@
  */
 
 /** Which venue a snapshot came from. */
-export type Dex = "raydium-cpmm" | "orca-whirlpool";
+export type Dex = "raydium-cpmm" | "orca-whirlpool" | "raydium-clmm";
 
 /** Identifies the trading pair; mints as base58 strings. */
 export interface PairInfo {
@@ -45,6 +45,12 @@ export interface CpmmSnapshot extends SnapshotBase {
   feeBps: number;
 }
 
+/**
+ * A concentrated-liquidity pool snapshot (Uniswap-V3-family). Despite the
+ * name, this `kind` covers BOTH Orca Whirlpool and Raydium CLMM
+ * (dex: "raydium-clmm") — both store a Q64.64 sqrt price and are priced
+ * identically by detect.ts. The `dex` field distinguishes the venue.
+ */
 export interface WhirlpoolSnapshot extends SnapshotBase {
   kind: "whirlpool";
   /** Q64.64 sqrt price (token B per token A), as stored on-chain. */

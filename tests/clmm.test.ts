@@ -1,11 +1,13 @@
-import { Keypair } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import {
   decodeClmmPool,
   CLMM_POOL_STATE_MIN_LEN,
   decodeClmmAmmConfigFeeBps,
   CLMM_AMM_CONFIG_MIN_LEN,
+  toClmmSnapshot,
 } from "../src/decode/clmm.js";
+import type { PairInfo } from "../src/types.js";
 
 function writeU128(buf: Uint8Array, offset: number, v: bigint) {
   for (let i = 0; i < 16; i++) buf[offset + i] = Number((v >> BigInt(8 * i)) & 0xffn);
@@ -80,5 +82,57 @@ describe("decodeClmmAmmConfigFeeBps", () => {
     expect(() => decodeClmmAmmConfigFeeBps(new Uint8Array(10))).toThrow(
       /too short/,
     );
+  });
+});
+
+const PAIR: PairInfo = {
+  baseMint: "So11111111111111111111111111111111111111112",
+  quoteMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  baseDecimals: 9,
+  quoteDecimals: 6,
+};
+
+function clmmStateWith(mint0: string, mint1: string) {
+  return {
+    ammConfig: Keypair.generate().publicKey,
+    tokenMint0: new PublicKey(mint0),
+    tokenMint1: new PublicKey(mint1),
+    tokenVault0: Keypair.generate().publicKey,
+    tokenVault1: Keypair.generate().publicKey,
+    observationKey: Keypair.generate().publicKey,
+    mintDecimals0: 9,
+    mintDecimals1: 6,
+    tickSpacing: 8,
+    liquidity: 100n,
+    sqrtPriceX64: 7_144_300_000_000_000_000n,
+    tickCurrentIndex: -18_000,
+  };
+}
+
+describe("toClmmSnapshot", () => {
+  const meta = {
+    poolAddress: "PooLaddr1111111111111111111111111111111111",
+    pair: PAIR,
+    slot: 42,
+    source: "probe",
+    fetchedAtMs: 1_700_000_000_000,
+  };
+
+  it("produces a whirlpool-kind snapshot tagged dex=raydium-clmm", () => {
+    const snap = toClmmSnapshot(clmmStateWith(PAIR.baseMint, PAIR.quoteMint), 25, meta);
+    expect(snap.kind).toBe("whirlpool");
+    expect(snap.dex).toBe("raydium-clmm");
+    expect(snap.sqrtPriceX64).toBe(7_144_300_000_000_000_000n);
+    expect(snap.liquidity).toBe(100n);
+    expect(snap.tickCurrentIndex).toBe(-18_000);
+    expect(snap.feeBps).toBe(25);
+    expect(snap.poolAddress).toBe(meta.poolAddress);
+    expect(snap.slot).toBe(42);
+  });
+
+  it("throws when the pool is oriented mint0=quote (inverted)", () => {
+    expect(() =>
+      toClmmSnapshot(clmmStateWith(PAIR.quoteMint, PAIR.baseMint), 25, meta),
+    ).toThrow(/orientation/);
   });
 });
