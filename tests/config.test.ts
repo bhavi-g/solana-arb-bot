@@ -155,6 +155,39 @@ describe("sendEnabled derivation (ADR-0008 structural send-disable)", () => {
     expect(cfg.orcaPoolAddressB).toBe("Bpool");
   });
 
+  it("VENUE=clmm-orca requires a CLMM pool + an Orca pool and defaults the CLMM program id", () => {
+    const clmmOrca = (over: Record<string, string> = {}) =>
+      shadowEnv({
+        DATA_SOURCE: "polling",
+        VENUE: "clmm-orca",
+        BASE_MINT: "B",
+        QUOTE_MINT: "Q",
+        BASE_DECIMALS: "9",
+        QUOTE_DECIMALS: "6",
+        ...over,
+      });
+    // missing RAYDIUM_CLMM_POOL_ADDRESS → throws
+    expect(() =>
+      loadConfig(clmmOrca({ ORCA_POOL_ADDRESS: "O" })),
+    ).toThrow(/RAYDIUM_CLMM_POOL_ADDRESS/);
+    // both present → loads
+    const cfg = loadConfig(
+      clmmOrca({ RAYDIUM_CLMM_POOL_ADDRESS: "C", ORCA_POOL_ADDRESS: "O" }),
+    );
+    expect(cfg.venue).toBe("clmm-orca");
+    expect(cfg.clmmPoolAddress).toBe("C");
+    expect(cfg.orcaPoolAddress).toBe("O");
+    expect(cfg.raydiumClmmProgramId).toBe(
+      "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK",
+    );
+    // override is honored
+    expect(
+      loadConfig(
+        clmmOrca({ RAYDIUM_CLMM_POOL_ADDRESS: "C", ORCA_POOL_ADDRESS: "O", RAYDIUM_CLMM_PROGRAM_ID: "Custom111" }),
+      ).raydiumClmmProgramId,
+    ).toBe("Custom111");
+  });
+
   it("defaults VENUE to cpmm-orca and still requires a Raydium pool", () => {
     expect(
       loadConfig(

@@ -27,8 +27,10 @@ export interface Config {
    * different fee tiers — the Phase-2 interim venue (docs/phases/
    * phase-2-mainnet-shadow-mode.md) while a Raydium CLMM decoder is built.
    */
-  venue: "cpmm-orca" | "orca-orca";
+  venue: "cpmm-orca" | "orca-orca" | "clmm-orca";
   orcaPoolAddressB?: string;
+  /** Raydium CLMM pool address (VENUE=clmm-orca). */
+  clmmPoolAddress?: string;
   tradeSizeQuote: bigint;
   minProfitThresholdQuote: bigint;
   slippageToleranceBps: number;
@@ -62,6 +64,12 @@ export interface Config {
   geyserEndpoint?: string;
   geyserXToken?: string;
   raydiumProgramId: string;
+  /**
+   * Raydium CLMM program id (VENUE=clmm-orca) — a DISTINCT program from the
+   * CPMM raydiumProgramId. Default mainnet CAMMCzo…; override with
+   * RAYDIUM_CLMM_PROGRAM_ID.
+   */
+  raydiumClmmProgramId: string;
   orcaProgramId: string;
   raydiumPoolAddress?: string;
   orcaPoolAddress?: string;
@@ -82,6 +90,8 @@ const RAYDIUM_CPMM_PROGRAM: Record<string, string> = {
   "mainnet-beta": "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C",
 };
 const ORCA_WHIRLPOOL_PROGRAM = "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc";
+// Raydium CLMM program (same address devnet/mainnet per docs.raydium.io).
+const RAYDIUM_CLMM_PROGRAM = "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK";
 
 const HELIUS_FREE_TIER_RPS = 10;
 
@@ -162,9 +172,9 @@ export function loadConfig(env: Env): Config {
     );
   }
   const venue = env.VENUE ?? "cpmm-orca";
-  if (venue !== "cpmm-orca" && venue !== "orca-orca") {
+  if (venue !== "cpmm-orca" && venue !== "orca-orca" && venue !== "clmm-orca") {
     throw new ConfigError(
-      `VENUE must be "cpmm-orca" or "orca-orca", got "${venue}"`,
+      `VENUE must be "cpmm-orca", "orca-orca", or "clmm-orca", got "${venue}"`,
     );
   }
 
@@ -172,7 +182,9 @@ export function loadConfig(env: Env): Config {
     const venueKeys =
       venue === "orca-orca"
         ? ["ORCA_POOL_ADDRESS", "ORCA_POOL_ADDRESS_B"]
-        : ["RAYDIUM_POOL_ADDRESS", "ORCA_POOL_ADDRESS"];
+        : venue === "clmm-orca"
+          ? ["RAYDIUM_CLMM_POOL_ADDRESS", "ORCA_POOL_ADDRESS"]
+          : ["RAYDIUM_POOL_ADDRESS", "ORCA_POOL_ADDRESS"];
     const pollingKeys = [
       ...venueKeys,
       "BASE_MINT",
@@ -243,11 +255,15 @@ export function loadConfig(env: Env): Config {
       RAYDIUM_CPMM_PROGRAM[cluster] ??
       RAYDIUM_CPMM_PROGRAM["devnet"]!,
     orcaProgramId: env.ORCA_WHIRLPOOL_PROGRAM_ID ?? ORCA_WHIRLPOOL_PROGRAM,
+    raydiumClmmProgramId: env.RAYDIUM_CLMM_PROGRAM_ID ?? RAYDIUM_CLMM_PROGRAM,
     ...(env.RAYDIUM_POOL_ADDRESS
       ? { raydiumPoolAddress: env.RAYDIUM_POOL_ADDRESS }
       : {}),
     ...(env.ORCA_POOL_ADDRESS ? { orcaPoolAddress: env.ORCA_POOL_ADDRESS } : {}),
     ...(env.ORCA_POOL_ADDRESS_B ? { orcaPoolAddressB: env.ORCA_POOL_ADDRESS_B } : {}),
+    ...(env.RAYDIUM_CLMM_POOL_ADDRESS
+      ? { clmmPoolAddress: env.RAYDIUM_CLMM_POOL_ADDRESS }
+      : {}),
     ...(env.BASE_MINT ? { baseMint: env.BASE_MINT } : {}),
     ...(env.QUOTE_MINT ? { quoteMint: env.QUOTE_MINT } : {}),
     ...(env.BASE_DECIMALS ? { baseDecimals: Number(env.BASE_DECIMALS) } : {}),
