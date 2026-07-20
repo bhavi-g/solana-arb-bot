@@ -116,7 +116,7 @@ describe("toClmmSnapshot", () => {
     pair: PAIR,
     slot: 42,
     source: "probe",
-    fetchedAtMs: 1_700_000_000_000,
+    fetchStartedAtMs: 1_700_000_000_000,
   };
 
   it("produces a whirlpool-kind snapshot tagged dex=raydium-clmm", () => {
@@ -144,7 +144,7 @@ function orcaSnap(sqrtPriceX64: bigint): WhirlpoolSnapshot {
     dex: "orca-whirlpool",
     poolAddress: "OrcaPooL111111111111111111111111111111111",
     pair: PAIR,
-    fetchedAtMs: 1_700_000_000_000,
+    fetchStartedAtMs: 1_700_000_000_000,
     slot: 42,
     source: "test",
     sqrtPriceX64,
@@ -160,7 +160,7 @@ describe("CLMM snapshot drives detect() with no detect.ts change", () => {
     pair: PAIR,
     slot: 42,
     source: "probe",
-    fetchedAtMs: 1_700_000_000_000,
+    fetchStartedAtMs: 1_700_000_000_000,
   };
   // ~150 USDC/SOL raw price; CLMM cheaper than Orca -> arb exists.
   const cheapClmm = toClmmSnapshot(

@@ -28,7 +28,7 @@ export interface GeyserAccountUpdate {
   pubkey: string;
   data: Uint8Array;
   slot: number;
-  /** Wall-clock ms when the update reached us (drives dataAgeMs). */
+  /** Wall-clock ms when the update reached us (drives handoffMs). */
   receivedAtMs: number;
 }
 
@@ -90,7 +90,7 @@ export class GeyserPriceSource implements PriceSource {
   private apply(u: GeyserAccountUpdate): void {
     const base = {
       pair: this.opts.pair,
-      fetchedAtMs: u.receivedAtMs,
+      fetchStartedAtMs: u.receivedAtMs,
       slot: u.slot,
       source: this.name,
     };

@@ -96,7 +96,7 @@ export interface ClmmSnapshotMeta {
   pair: PairInfo;
   slot: number;
   source: string;
-  fetchedAtMs: number;
+  fetchStartedAtMs: number;
 }
 
 /**
@@ -125,7 +125,7 @@ export function toClmmSnapshot(
     dex: "raydium-clmm",
     poolAddress: meta.poolAddress,
     pair: meta.pair,
-    fetchedAtMs: meta.fetchedAtMs,
+    fetchStartedAtMs: meta.fetchStartedAtMs,
     slot: meta.slot,
     source: meta.source,
     sqrtPriceX64: state.sqrtPriceX64,

@@ -14,7 +14,7 @@ const priceRef: PoolSnapshot = {
   dex: "raydium-cpmm",
   poolAddress: "P",
   pair: { baseMint: "b", quoteMint: "q", baseDecimals: 9, quoteDecimals: 6 },
-  fetchedAtMs: 0,
+  fetchStartedAtMs: 0,
   slot: 1,
   source: "test",
   baseReserve: 1_000_000_000_000n, // 1,000 SOL in lamports

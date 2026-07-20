@@ -49,7 +49,7 @@ async function main(): Promise<void> {
     dex: "orca-whirlpool",
     poolAddress: addr,
     pair,
-    fetchedAtMs: Date.now(),
+    fetchStartedAtMs: Date.now(),
     slot: 0,
     source: "smoke",
     sqrtPriceX64: s.sqrtPriceX64,

@@ -83,15 +83,15 @@ describe("computeShadowStats", () => {
 
   it("surfaces latency percentiles when detail.latency is present", () => {
     const withLatency = [
-      line({ detail: { latency: { dataAgeMs: 100, detectComputeMs: 1 } } }),
+      line({ detail: { latency: { handoffMs: 100, detectComputeMs: 1 } } }),
       line({
         timestamp: iso(1),
-        detail: { latency: { dataAgeMs: 900, detectComputeMs: 3 } },
+        detail: { latency: { handoffMs: 900, detectComputeMs: 3 } },
       }),
     ];
     const s = computeShadowStats(withLatency, { cluster: "mainnet-beta" });
-    expect(s.latency.dataAgeMsP50).toBe(100);
-    expect(s.latency.dataAgeMsP95).toBe(900);
+    expect(s.latency.handoffMsP50).toBe(100);
+    expect(s.latency.handoffMsP95).toBe(900);
     expect(s.latency.detectComputeMsP50).toBe(1);
   });
 
@@ -100,7 +100,7 @@ describe("computeShadowStats", () => {
     expect(s.opportunities).toBe(0);
     expect(s.opportunitiesPerHour).toBe(0);
     expect(s.avgNet).toBeNull();
-    expect(s.latency.dataAgeMsP50).toBeNull();
+    expect(s.latency.handoffMsP50).toBeNull();
   });
 
   it("skips torn/non-JSON tail lines instead of throwing", () => {

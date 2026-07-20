@@ -77,7 +77,7 @@ describe("GeyserPriceSource", () => {
     expect(pairs[1]!.cpmm.slot).toBe(102);
     expect(pairs[1]!.whirlpool.slot).toBe(101); // freshest known state
     expect(pairs[0]!.cpmm.source).toBe("geyser");
-    expect(pairs[0]!.cpmm.fetchedAtMs).toBe(1100); // transport receive time
+    expect(pairs[0]!.cpmm.fetchStartedAtMs).toBe(1100); // transport receive time
     expect(pairs[0]!.cpmm.kind).toBe("cpmm");
     expect(pairs[0]!.whirlpool.kind).toBe("whirlpool");
 
