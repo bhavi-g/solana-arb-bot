@@ -7,7 +7,8 @@ import {
   CLMM_AMM_CONFIG_MIN_LEN,
   toClmmSnapshot,
 } from "../src/decode/clmm.js";
-import type { PairInfo } from "../src/types.js";
+import type { PairInfo, WhirlpoolSnapshot } from "../src/types.js";
+import { detect } from "../src/detect.js";
 
 function writeU128(buf: Uint8Array, offset: number, v: bigint) {
   for (let i = 0; i < 16; i++) buf[offset + i] = Number((v >> BigInt(8 * i)) & 0xffn);
@@ -134,5 +135,55 @@ describe("toClmmSnapshot", () => {
     expect(() =>
       toClmmSnapshot(clmmStateWith(PAIR.quoteMint, PAIR.baseMint), 25, meta),
     ).toThrow(/orientation/);
+  });
+});
+
+function orcaSnap(sqrtPriceX64: bigint): WhirlpoolSnapshot {
+  return {
+    kind: "whirlpool",
+    dex: "orca-whirlpool",
+    poolAddress: "OrcaPooL111111111111111111111111111111111",
+    pair: PAIR,
+    fetchedAtMs: 1_700_000_000_000,
+    slot: 42,
+    source: "test",
+    sqrtPriceX64,
+    liquidity: 1_000_000n,
+    tickCurrentIndex: 0,
+    feeBps: 4,
+  };
+}
+
+describe("CLMM snapshot drives detect() with no detect.ts change", () => {
+  const meta = {
+    poolAddress: "PooLaddr1111111111111111111111111111111111",
+    pair: PAIR,
+    slot: 42,
+    source: "probe",
+    fetchedAtMs: 1_700_000_000_000,
+  };
+  // ~150 USDC/SOL raw price; CLMM cheaper than Orca -> arb exists.
+  const cheapClmm = toClmmSnapshot(
+    { ...clmmStateWith(PAIR.baseMint, PAIR.quoteMint), sqrtPriceX64: 7_100_000_000_000_000_000n },
+    4,
+    meta,
+  );
+  const params = {
+    tradeSizeQuote: 100_000_000n, // 100 USDC
+    minProfitThresholdQuote: 1n,
+    slippageToleranceBps: 10,
+    estTxFeeQuote: 0n,
+  };
+
+  it("flags an opportunity when CLMM and Orca prices diverge", () => {
+    const richOrca = orcaSnap(7_400_000_000_000_000_000n); // higher price
+    const d = detect(cheapClmm, richOrca, params);
+    expect(d.decision).toBe("opportunity");
+  });
+
+  it("no opportunity when prices are aligned", () => {
+    const alignedOrca = orcaSnap(7_100_000_000_000_000_000n);
+    const d = detect(cheapClmm, alignedOrca, params);
+    expect(d.decision).toBe("no-opportunity");
   });
 });
