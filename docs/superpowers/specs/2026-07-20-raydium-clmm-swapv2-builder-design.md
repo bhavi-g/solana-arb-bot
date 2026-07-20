@@ -140,6 +140,12 @@ in one place:
   constants, verified against source — near but not bit-identical to
   Orca's `MIN_SQRT_PRICE`/`MAX_SQRT_PRICE`, since CLMM's tick/price bounds
   are defined independently in its own program).
+  **Superseded by the T51 live-sim finding:** the deployed program's
+  `swap_internal` check is strict (`>`/`<`, not `>=`/`<=`) against these
+  bounds, so the client must send `MIN_SQRT_PRICE_X64 + 1` /
+  `MAX_SQRT_PRICE_X64 - 1`, not the exact boundary — see
+  `src/txbuilder/raydiumClmm.ts`'s `buildClmmSwapV2Ix` doc comment for
+  the on-chain evidence (error `SqrtPriceLimitOverflow`, code 6011).
 
 Given the live pool's confirmed orientation (SOL = mint_0, USDC =
 mint_1), a SOL→USDC sell is `inputIsToken0 = true`; a USDC→SOL buy is

@@ -400,6 +400,17 @@ export interface ClmmSwapV2Params {
   inputIsToken0: boolean;
 }
 
+> **⚠️ SUPERSEDED BY T51 (do not copy the code below verbatim):** the
+> live mainnet simulation in Task 3 found that the deployed program
+> rejects the exact `MIN`/`MAX` boundary (`SqrtPriceLimitOverflow`,
+> code 6011 — the on-chain check is strict `>`/`<`, not `>=`/`<=`). The
+> shipped code uses `CLMM_MIN_SQRT_PRICE_X64 + 1n` /
+> `CLMM_MAX_SQRT_PRICE_X64 - 1n` instead. See the `buildClmmSwapV2Ix`
+> doc comment in `src/txbuilder/raydiumClmm.ts` for the on-chain
+> evidence. The block below is left as originally planned for the
+> historical record of what was dispatched to Task 2's implementer.
+
+```typescript
 export function buildClmmSwapV2Ix(p: ClmmSwapV2Params): TransactionInstruction {
   const data = Buffer.alloc(8 + 8 + 8 + 16 + 1);
   data.set(CLMM_SWAP_V2_DISCRIMINATOR, 0);
