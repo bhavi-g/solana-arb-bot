@@ -2,17 +2,20 @@
  * Raydium CLMM (concentrated liquidity) account decoding.
  *
  * Field order verified against raydium-io/raydium-clmm
- * programs/amm/src/states/{pool,config}.rs @ <PINNED_COMMIT> AND against
- * live mainnet account data (scripts/probe-mainnet-clmm-pools.ts). Both
- * checks are required — do not trust one alone.
+ * programs/amm/src/states/{pool,config}.rs @ 03b44b7 (master, 2026-07-16)
+ * AND against live mainnet account data
+ * (scripts/probe-mainnet-clmm-pools.ts, pool
+ * 3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv). Both checks are required
+ * — do not trust one alone.
  *
- * PoolState is a zero-copy repr(packed) account: 8-byte Anchor
+ * PoolState is a zero-copy #[repr(C, packed)] account: 8-byte Anchor
  * discriminator, then C-packed fields with no alignment padding, so every
  * offset below is fixed byte arithmetic.
  *
  * WARNING: the fee is NOT in this account. It lives in the referenced
- * AmmConfig (decodeClmmAmmConfigFeeBps). CLMM's AmmConfig layout differs
- * from Raydium CPMM's AmmConfig — do NOT reuse raydiumCpmm's decoder.
+ * AmmConfig (decodeClmmAmmConfigFeeBps), an Anchor Borsh #[account] (also
+ * unpadded). CLMM's AmmConfig layout differs from Raydium CPMM's AmmConfig
+ * — do NOT reuse raydiumCpmm's decoder.
  */
 import { PublicKey } from "@solana/web3.js";
 import { readI32, readU16, readU128, readU32 } from "./layout.js";
@@ -74,8 +77,8 @@ export function decodeClmmPool(data: Uint8Array): ClmmPoolState {
   };
 }
 
-// AmmConfig (repr(packed)): bump u8 @8, index u16 @9, owner @11,
-// protocol_fee_rate u32 @43, trade_fee_rate u32 @47 (ppm, denom 1e6).
+// AmmConfig (Anchor Borsh #[account], unpadded): bump u8 @8, index u16 @9,
+// owner @11, protocol_fee_rate u32 @43, trade_fee_rate u32 @47 (ppm, denom 1e6).
 const TRADE_FEE_RATE = 47;
 
 export const CLMM_AMM_CONFIG_MIN_LEN = TRADE_FEE_RATE + 4;
