@@ -106,3 +106,39 @@ whole exit signal).
 - Exit criteria addition: report the count/rate of opportunities that
   are net-positive AFTER full realistic costs, not just gross-positive.
   This number is the actual go/no-go signal for Phase 3.
+
+## Run result — two-Orca venue (interim, documented negative finding)
+
+**Run:** two-Orca shadow, `mainnet-beta`, `polling`, PHASE=2 (send
+structurally disabled). Pools `Czfq3xZZ…44zE` (4 bps) vs `FpCMFDFG…o28Q`
+(2 bps). Config: `TRADE_SIZE_QUOTE=100 USDC`,
+`MIN_PROFIT_THRESHOLD_QUOTE=10000` (0.01 USDC), `SLIPPAGE_TOLERANCE_BPS=50`,
+`POLL_INTERVAL_MS=1500`.
+**Window analysed:** 2026-07-17T17:13:56Z → 2026-07-20T04:32:36Z (59.3 h,
+ongoing), **28,469 cycles** (all `mainnet-beta`/`polling`; 258 earlier
+Phase-1 devnet records in `attempts.jsonl` excluded by run-start filter).
+
+**Result — ZERO signal:**
+- **0 opportunities** (gross *or* net) across all 28,469 cycles — every
+  cycle a correct `no-opportunity`.
+- **0 sends** (shadow-mode integrity intact; ADR-0008 held).
+
+**Interpretation — this is useful NEGATIVE DATA, not a failure.** The two
+deep same-pair Orca pools stay tightly aligned (~0–2 bps gap) while a round
+trip costs ~1 USDC in pool fees + slippage, so the price gap never clears
+cost + threshold. This matches the venue-decision caveat recorded when
+Option 3 was chosen as a *deliberate interim* venue: profitable
+opportunities were expected to be rare-to-none. The pipeline itself is
+verified healthy (28k clean cycles, correct decisions, zero sends) — the
+absence of signal is a property of the venue, not a bug. It confirms the
+need for the cross-DEX Option-1 (Raydium CLMM) venue — whose decoder
+foundation is now built and merged (`ade7628`) — to produce the real
+Phase-3 go/no-go signal.
+
+**⚠️ Latency caveat:** `dataAgeMs` figures from this run are NOT
+trustworthy and must not be cited. Under investigation: the metric as
+computed measures intra-process receipt→detect handoff (≈0; p50=p95=0,
+96.2% exactly 0), not data staleness relative to the chain, and it reads
+≈0 for Geyser too — so it cannot serve the polling-vs-Geyser comparison
+until redefined. Diagnosis + proposed fix pending owner review; no change
+applied (fix requires restarting the live shadow).
