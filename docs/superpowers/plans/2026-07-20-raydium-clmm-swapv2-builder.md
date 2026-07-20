@@ -15,7 +15,7 @@
 - **Tick-array selection is the fixed 3-array heuristic** (current array + next two in swap direction), not `tick_array_bitmap` discovery — mirrors `orcaWhirlpool.ts`. This is a documented limitation for large trade sizes, not a bug to fix here.
 - **Dual-source verification is mandatory before calling this done:** the account list, order, writable/signer flags, and data layout below were transcribed from raydium-clmm source (`programs/amm/src/instructions/swap_v2.rs` @ pinned commit `03b44b7`, same commit already cited in `src/decode/clmm.ts`) AND cross-checked against the vendored `@raydium-io/raydium-sdk-v2` reference implementation (`node_modules/@raydium-io/raydium-sdk-v2/src/raydium/clmm/instrument.ts`, `swapV2Instruction`, and `node_modules/@raydium-io/raydium-sdk-v2/src/raydium/clmm/libraries/{pda,constants}.ts`) — both already reflected in the code blocks in this plan. Task 3's live simulation is the third, final leg — do not consider the builder done on source-only or sim-only verification.
 - **No new error-throwing surface.** `buildClmmSwapV2Ix` does not validate its inputs (e.g. does not guard `amount < 0n`) — this matches `buildWhirlpoolSwapIx` and `buildCpmmSwapBaseInputIx`, which trust their callers. Do not add validation.
-- Commits go directly to `master` as `T<n>: summary` (T47 was the design-spec commit; use T48 onward for this plan's commits — confirm the next free number with `git log --oneline | grep -oE 'T[0-9]+' | head -1` before the first commit since another session may have advanced it).
+- Commits go directly to `master` as `T<n>: summary` (T47 was the design-spec commit, T48 this plan's own commit; use T49 onward for this plan's task commits — confirm the next free number with `git log --oneline | grep -oE 'T[0-9]+' | head -1` before the first commit since another session may have advanced it).
 
 ---
 
@@ -208,7 +208,7 @@ Expected: no errors
 
 ```bash
 git add src/txbuilder/raydiumClmm.ts tests/raydiumClmm.test.ts
-git commit -m "T48: CLMM swap_v2 discriminator + tick-array/bitmap PDA helpers"
+git commit -m "T49: CLMM swap_v2 discriminator + tick-array/bitmap PDA helpers"
 ```
 
 ---
@@ -461,7 +461,7 @@ Expected: typecheck clean; full suite passes with the same count as before this 
 
 ```bash
 git add src/txbuilder/raydiumClmm.ts tests/raydiumClmm.test.ts
-git commit -m "T49: buildClmmSwapV2Ix — Raydium CLMM swap_v2 instruction builder"
+git commit -m "T50: buildClmmSwapV2Ix — Raydium CLMM swap_v2 instruction builder"
 ```
 
 ---
@@ -599,7 +599,7 @@ If `err` is non-null: this is the expected failure mode during development the d
 
 ```bash
 git add scripts/smoke-clmm-swap-sim.ts
-git commit -m "T50: CLMM swap_v2 mainnet simulation smoke-check (err:null verified)"
+git commit -m "T51: CLMM swap_v2 mainnet simulation smoke-check (err:null verified)"
 ```
 
 ---
