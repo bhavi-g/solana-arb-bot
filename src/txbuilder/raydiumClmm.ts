@@ -105,12 +105,26 @@ export interface ClmmSwapV2Params {
   inputIsToken0: boolean;
 }
 
+/**
+ * swap_internal's require! (raydium-clmm programs/amm/src/instructions/
+ * swap.rs, verified live via mainnet simulation error 6011
+ * SqrtPriceLimitOverflow and against source @ master) uses STRICT
+ * inequalities against the tick_math bounds:
+ *   zero_for_one:  sqrt_price_limit_x64 >  MIN_SQRT_PRICE_X64
+ *   !zero_for_one: sqrt_price_limit_x64 <  MAX_SQRT_PRICE_X64
+ * The exact boundary value is therefore always rejected. This matches
+ * the program's own "no limit" fallback (when the client passes 0, it
+ * substitutes MIN_SQRT_PRICE_X64 + 1 / MAX_SQRT_PRICE_X64 - 1), which we
+ * replicate explicitly rather than relying on the 0-sentinel.
+ */
 export function buildClmmSwapV2Ix(p: ClmmSwapV2Params): TransactionInstruction {
   const data = Buffer.alloc(8 + 8 + 8 + 16 + 1);
   data.set(CLMM_SWAP_V2_DISCRIMINATOR, 0);
   data.writeBigUInt64LE(p.amount, 8);
   data.writeBigUInt64LE(p.otherAmountThreshold, 16);
-  const sqrtPriceLimit = p.inputIsToken0 ? CLMM_MIN_SQRT_PRICE_X64 : CLMM_MAX_SQRT_PRICE_X64;
+  const sqrtPriceLimit = p.inputIsToken0
+    ? CLMM_MIN_SQRT_PRICE_X64 + 1n
+    : CLMM_MAX_SQRT_PRICE_X64 - 1n;
   data.writeBigUInt64LE(sqrtPriceLimit & 0xffffffffffffffffn, 24);
   data.writeBigUInt64LE(sqrtPriceLimit >> 64n, 32);
   data.writeUInt8(1, 40); // is_base_input = true

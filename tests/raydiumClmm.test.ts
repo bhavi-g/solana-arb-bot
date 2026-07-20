@@ -100,16 +100,20 @@ describe("buildClmmSwapV2Ix", () => {
     expect(ix.data.readUInt8(40)).toBe(1); // is_base_input = true
   });
 
-  it("sets sqrt_price_limit_x64 to MIN for inputIsToken0=true, MAX for false", () => {
+  // The on-chain require! (raydium-clmm swap.rs) uses STRICT inequalities
+  // against these bounds (verified against source AND live via mainnet
+  // simulation error 6011 SqrtPriceLimitOverflow), so the exact boundary
+  // value is always rejected — the client must submit MIN+1 / MAX-1.
+  it("sets sqrt_price_limit_x64 to MIN+1 for inputIsToken0=true, MAX-1 for false", () => {
     const t0 = buildClmmSwapV2Ix({ ...base, inputIsToken0: true });
     const lo0 = t0.data.readBigUInt64LE(24);
     const hi0 = t0.data.readBigUInt64LE(32);
-    expect((hi0 << 64n) | lo0).toBe(CLMM_MIN_SQRT_PRICE_X64);
+    expect((hi0 << 64n) | lo0).toBe(CLMM_MIN_SQRT_PRICE_X64 + 1n);
 
     const t1 = buildClmmSwapV2Ix({ ...base, inputIsToken0: false });
     const lo1 = t1.data.readBigUInt64LE(24);
     const hi1 = t1.data.readBigUInt64LE(32);
-    expect((hi1 << 64n) | lo1).toBe(CLMM_MAX_SQRT_PRICE_X64);
+    expect((hi1 << 64n) | lo1).toBe(CLMM_MAX_SQRT_PRICE_X64 - 1n);
   });
 
   it("orders all 17 accounts with correct writable/signer flags", () => {
