@@ -15,6 +15,7 @@
  */
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { createHash } from "node:crypto";
+import { TOKEN_PROGRAM_ID } from "./index.js";
 
 /** Anchor: sha256("global:swap_v2")[0..8]. */
 export const CLMM_SWAP_V2_DISCRIMINATOR = createHash("sha256")
@@ -69,4 +70,83 @@ export function tickArrayBitmapExtensionPda(
     [Buffer.from("pool_tick_array_bitmap_extension"), pool.toBuffer()],
     programId,
   )[0];
+}
+
+export interface ClmmSwapV2Params {
+  programId: PublicKey;
+  payer: PublicKey;
+  ammConfig: PublicKey;
+  poolState: PublicKey;
+  inputTokenAccount: PublicKey;
+  outputTokenAccount: PublicKey;
+  inputVault: PublicKey;
+  outputVault: PublicKey;
+  observationState: PublicKey;
+  inputVaultMint: PublicKey;
+  outputVaultMint: PublicKey;
+  tickCurrentIndex: number;
+  tickSpacing: number;
+  /** Input amount (is_base_input is always true here). */
+  amount: bigint;
+  /** Minimum output amount — enforces profitability atomically. */
+  otherAmountThreshold: bigint;
+  /**
+   * Whether the INPUT side is the pool's token_mint_0. The
+   * input/output accounts above are already resolved by the caller
+   * (swap_v2's accounts are literally "input_*"/"output_*", unlike
+   * Orca's fixed A/B ordering) — this flag does NOT reorder them. It
+   * independently drives the tick-array walk direction and the
+   * sqrt_price_limit_x64 bound, because swap_v2's instruction DATA
+   * carries no separate zero_for_one byte: the program infers
+   * direction on-chain by comparing input_vault_mint to the pool's
+   * token_mint_0, so the client must still supply a price limit
+   * consistent with that same direction.
+   */
+  inputIsToken0: boolean;
+}
+
+export function buildClmmSwapV2Ix(p: ClmmSwapV2Params): TransactionInstruction {
+  const data = Buffer.alloc(8 + 8 + 8 + 16 + 1);
+  data.set(CLMM_SWAP_V2_DISCRIMINATOR, 0);
+  data.writeBigUInt64LE(p.amount, 8);
+  data.writeBigUInt64LE(p.otherAmountThreshold, 16);
+  const sqrtPriceLimit = p.inputIsToken0 ? CLMM_MIN_SQRT_PRICE_X64 : CLMM_MAX_SQRT_PRICE_X64;
+  data.writeBigUInt64LE(sqrtPriceLimit & 0xffffffffffffffffn, 24);
+  data.writeBigUInt64LE(sqrtPriceLimit >> 64n, 32);
+  data.writeUInt8(1, 40); // is_base_input = true
+
+  const ticksPerArray = p.tickSpacing * CLMM_TICK_ARRAY_SIZE;
+  const start = clmmTickArrayStartIndex(p.tickCurrentIndex, p.tickSpacing);
+  const step = p.inputIsToken0 ? -ticksPerArray : ticksPerArray;
+  const tickArrays = [start, start + step, start + 2 * step].map((s) =>
+    clmmTickArrayPda(p.programId, p.poolState, s),
+  );
+
+  return new TransactionInstruction({
+    programId: p.programId,
+    keys: [
+      { pubkey: p.payer, isSigner: true, isWritable: false },
+      { pubkey: p.ammConfig, isSigner: false, isWritable: false },
+      { pubkey: p.poolState, isSigner: false, isWritable: true },
+      { pubkey: p.inputTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: p.outputTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: p.inputVault, isSigner: false, isWritable: true },
+      { pubkey: p.outputVault, isSigner: false, isWritable: true },
+      { pubkey: p.observationState, isSigner: false, isWritable: true },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: MEMO_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: p.inputVaultMint, isSigner: false, isWritable: false },
+      { pubkey: p.outputVaultMint, isSigner: false, isWritable: false },
+      {
+        pubkey: tickArrayBitmapExtensionPda(p.programId, p.poolState),
+        isSigner: false,
+        isWritable: true,
+      },
+      { pubkey: tickArrays[0]!, isSigner: false, isWritable: true },
+      { pubkey: tickArrays[1]!, isSigner: false, isWritable: true },
+      { pubkey: tickArrays[2]!, isSigner: false, isWritable: true },
+    ],
+    data,
+  });
 }
