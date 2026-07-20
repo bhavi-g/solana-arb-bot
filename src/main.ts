@@ -41,6 +41,12 @@ import {
   buildTwoWhirlpoolArbTransaction,
   type TwoWhirlpoolBuildContext,
 } from "./txbuilder/twoWhirlpool.js";
+import { ClmmOrcaPollingSource } from "./datasource/clmmOrcaPolling.js";
+import {
+  buildClmmOrcaArbTransaction,
+  type ClmmOrcaBuildContext,
+} from "./txbuilder/clmmOrca.js";
+import { decodeClmmPool, decodeClmmAmmConfigFeeBps } from "./decode/clmm.js";
 import type { Opportunity, PairInfo, PoolSnapshot } from "./types.js";
 
 async function main(): Promise<void> {
@@ -348,6 +354,10 @@ async function setUp(
       return setUpOrcaOrca(cfg, connection, limiter, buildPayer, orcaProgramId, pair);
     }
 
+    if (cfg.venue === "clmm-orca") {
+      return setUpClmmOrca(cfg, connection, limiter, buildPayer, orcaProgramId, pair);
+    }
+
     // venue = cpmm-orca (Raydium CPMM vs Orca Whirlpool).
     const source: PriceSource =
       cfg.dataSource === "geyser"
@@ -582,6 +592,110 @@ async function setUpOrcaOrca(
   console.log(
     `[main] VENUE=orca-orca: ${poolA.toBase58()} (fee ${stateA.feeBps}bps) vs ` +
       `${poolB.toBase58()} (fee ${stateB.feeBps}bps)`,
+  );
+  return { source, buildTx, feeLamportsWithHeadroom };
+}
+
+/**
+ * clmm-orca cross-DEX venue setup (Phase-2). Polls one Raydium CLMM pool +
+ * one Orca whirlpool and builds atomic CLMM+Orca arb transactions. The CLMM
+ * fee lives in the referenced AmmConfig (not the pool account) and is
+ * effectively static, so it is resolved ONCE here at startup and injected
+ * into the polling source. Geyser is not wired for this venue.
+ */
+async function setUpClmmOrca(
+  cfg: Config,
+  connection: Connection,
+  limiter: RateLimiter,
+  buildPayer: Keypair | PublicKey,
+  orcaProgramId: PublicKey,
+  pair: PairInfo,
+): Promise<Setup> {
+  if (cfg.dataSource === "geyser") {
+    throw new Error(
+      "VENUE=clmm-orca is only wired for DATA_SOURCE=polling (a heterogeneous " +
+        "CLMM+Orca Geyser source is not implemented yet)",
+    );
+  }
+
+  const clmmProgramId = new PublicKey(cfg.raydiumClmmProgramId);
+  const clmmPool = new PublicKey(cfg.clmmPoolAddress!);
+  const orcaPool = new PublicKey(cfg.orcaPoolAddress!);
+
+  // Startup reads: CLMM pool (for static state) + Orca whirlpool.
+  await limiter.acquire();
+  const [clmmAcc, orcaAcc] = await connection.getMultipleAccountsInfo([
+    clmmPool,
+    orcaPool,
+  ]);
+  if (!clmmAcc || !orcaAcc) {
+    throw new Error("configured clmm-orca pool accounts not found on this cluster");
+  }
+  const clmmState = decodeClmmPool(clmmAcc.data);
+  const orcaState = decodeWhirlpool(orcaAcc.data);
+
+  // CLMM fee lives in the referenced AmmConfig — read it once here.
+  await limiter.acquire();
+  const ammConfigAcc = await connection.getAccountInfo(clmmState.ammConfig);
+  if (!ammConfigAcc) {
+    throw new Error(`CLMM AmmConfig ${clmmState.ammConfig.toBase58()} not found`);
+  }
+  const clmmFeeBps = decodeClmmAmmConfigFeeBps(ammConfigAcc.data);
+
+  const source = new ClmmOrcaPollingSource(
+    connection,
+    {
+      clmmPoolAddress: clmmPool.toBase58(),
+      whirlpoolAddress: orcaPool.toBase58(),
+      pair,
+      pollIntervalMs: cfg.pollIntervalMs,
+      clmmFeeBps,
+    },
+    limiter,
+  );
+
+  const makeCtx = (
+    snap: SnapshotPair,
+    blockhash: string,
+  ): ClmmOrcaBuildContext => ({
+    payer: buildPayer,
+    recentBlockhash: blockhash,
+    pair,
+    clmm: {
+      programId: clmmProgramId,
+      poolAddress: clmmPool,
+      state: clmmState,
+      tickCurrentIndex:
+        snap.cpmm.kind === "whirlpool" ? snap.cpmm.tickCurrentIndex : clmmState.tickCurrentIndex,
+    },
+    whirlpool: {
+      programId: orcaProgramId,
+      poolAddress: orcaPool,
+      state: orcaState,
+      tickCurrentIndex:
+        snap.whirlpool.kind === "whirlpool"
+          ? snap.whirlpool.tickCurrentIndex
+          : orcaState.tickCurrentIndex,
+    },
+  });
+  const buildTx: BuildTx = (snap, blockhash, opp, cuLimit) =>
+    buildClmmOrcaArbTransaction(makeCtx(snap, blockhash), opp, cuLimit);
+
+  const feeLamportsWithHeadroom = await resolveStartupFeeLamports(
+    cfg,
+    connection,
+    limiter,
+    (blockhash) =>
+      buildTx(
+        sampleSnapshotPair(pair, orcaState.tickCurrentIndex),
+        blockhash,
+        sampleOpportunity(cfg),
+      ),
+  );
+
+  console.log(
+    `[main] VENUE=clmm-orca: CLMM ${clmmPool.toBase58()} (fee ${clmmFeeBps}bps) vs ` +
+      `Orca ${orcaPool.toBase58()} (fee ${orcaState.feeBps}bps)`,
   );
   return { source, buildTx, feeLamportsWithHeadroom };
 }
