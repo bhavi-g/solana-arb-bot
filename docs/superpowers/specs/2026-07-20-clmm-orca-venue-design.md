@@ -208,22 +208,24 @@ read-only end to end:
 - Simulate **both direction assignments** (buy-on-CLMM/sell-on-Orca and
   the reverse) so account order + PDA derivation are exercised for each
   leg orientation.
-- **Assert:** `err:null` on **both** direction assignments (the relaxed
-  threshold removes profitability as the gate, so a failure means a
-  malformed tx, not an unfavorable gap); both the Raydium CLMM and Orca
-  Whirlpool program IDs appear in the sim logs (proves both legs executed
-  atomically, not just one); CU consumption is sane (order of ~90–100k,
-  i.e. roughly the ~44k CLMM + ~56k two-Orca-leg figures combined); and
-  confirm by code review that the script has no
+- **Assert (honest pass criterion):** for **both** direction assignments,
+  both the Raydium CLMM and Orca Whirlpool program IDs appear in the sim
+  logs (proves both legs executed atomically, not just one) **AND** `err`
+  is either `null` or a slippage/amount-class error. Both outcomes prove a
+  *well-formed* tx; the only FAIL is a malformed-account/PDA/discriminator
+  error where a leg never reaches its program. CU consumption is sane
+  (order of ~90–100k, i.e. roughly the ~44k CLMM + ~56k two-Orca-leg
+  figures combined). Confirm by code review that the script has no
   `sendRawTransaction`/`sendTransaction` path.
 
-**Profitability caveat (honest pass criterion):** an unprofitable
-real-time price gap makes the sell leg's min-out fail with a concrete
-slippage error — expected, and distinct from a malformed-tx failure. The
-smoke-check's pass criterion is a *well-formed* tx reaching both programs,
-which is assertable even when the market gap doesn't clear: relax the
-sell-leg threshold to `0`/`1` for the shape check, exactly as a
-fee-sample opportunity does.
+**Why not simply `err:null`:** the builder hard-codes the sell leg's
+min-out to `quoteIn + minProfitThreshold` (breakeven+), so a real
+self-round-trip returns `err:null` ONLY when a genuine cross-venue gap
+exists at that instant; otherwise a concrete slippage error. Both are
+well-formed and reach both programs — which is exactly what the smoke
+check is proving — so the pass criterion accepts either and reserves
+failure for the malformed case (encoded in the script's `acceptable()`
+helper).
 
 ## Testing
 
@@ -312,10 +314,10 @@ is a loud, expected dev-time signal, not a runtime path to design around.
   read per cycle; orientation/missing-account guards throw.
 - `VENUE=clmm-orca` wires end to end through `setUpClmmOrca` with additive
   config only; `cpmm-orca`/`orca-orca`/synthetic paths unaffected.
-- The mainnet sim smoke-check simulates the atomic two-leg tx with
-  `err:null` on both direction assignments (relaxed sell-leg threshold),
-  both program IDs in the logs, sane CU, and zero send capability in the
-  script.
+- The mainnet sim smoke-check simulates the atomic two-leg tx as
+  well-formed on both direction assignments (both program IDs in the logs;
+  `err` null or a slippage/amount-class error, not a malformed-account
+  error), sane CU, and zero send capability in the script.
 - All new unit tests pass; existing tests + typecheck remain green.
 - Isolation boundary holds: only new files + the additive `config.ts` /
   `main.ts` / `.env.example` edits.
