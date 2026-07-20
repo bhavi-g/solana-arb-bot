@@ -48,7 +48,7 @@ class FakeFetcher implements AccountBatchFetcher {
 const decode = (data: Uint8Array): WhirlpoolState =>
   data[0] === 0 ? whirl(7n) : whirl(9n);
 
-function make(fetcher: FakeFetcher, decodeFn = decode) {
+function make(fetcher: AccountBatchFetcher, decodeFn = decode) {
   return new OrcaOrcaPollingSource(
     fetcher,
     { whirlpoolAAddress: addrA.toBase58(), whirlpoolBAddress: addrB.toBase58(), pair, pollIntervalMs: 0 },
@@ -74,6 +74,31 @@ describe("OrcaOrcaPollingSource", () => {
     expect(p.cpmm.slot).toBe(555);
     if (p.cpmm.kind === "whirlpool") expect(p.cpmm.sqrtPriceX64).toBe(7n);
     if (p.whirlpool.kind === "whirlpool") expect(p.whirlpool.sqrtPriceX64).toBe(9n);
+  });
+
+  it("stamps fetchStartedAtMs BEFORE the fetch so round-trip latency is captured", async () => {
+    const DELAY_MS = 30;
+    class DelayFetcher implements AccountBatchFetcher {
+      async getMultipleAccountsInfoAndContext(_keys: PublicKey[]) {
+        await new Promise((r) => setTimeout(r, DELAY_MS));
+        return {
+          context: { slot: 1 },
+          value: [{ data: new Uint8Array([0]) }, { data: new Uint8Array([1]) }],
+        };
+      }
+    }
+    const source = make(new DelayFetcher());
+    let snap!: SnapshotPair;
+    await source.run(async (p) => {
+      snap = p;
+      source.stop();
+    });
+    // The timestamp was taken before the DELAY_MS fetch resolved, so by the
+    // time the pair is emitted at least DELAY_MS has elapsed. (Old code stamped
+    // it AFTER the await, which would floor this to ~0.)
+    expect(Date.now() - snap.cpmm.fetchStartedAtMs).toBeGreaterThanOrEqual(DELAY_MS);
+    // Both legs come from one batch read → they share the one pre-fetch stamp.
+    expect(snap.cpmm.fetchStartedAtMs).toBe(snap.whirlpool.fetchStartedAtMs);
   });
 
   it("rejects a whirlpool whose orientation is not A=base B=quote (no pair emitted)", async () => {

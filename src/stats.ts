@@ -29,8 +29,8 @@ export interface ShadowStats {
   simFailures: number;
   revertRate: number;
   latency: {
-    dataAgeMsP50: number | null;
-    dataAgeMsP95: number | null;
+    handoffMsP50: number | null;
+    handoffMsP95: number | null;
     detectComputeMsP50: number | null;
     detectComputeMsP95: number | null;
   };
@@ -46,7 +46,7 @@ interface ParsedRecord {
     netProfit: string | null;
     netComputable: boolean;
   };
-  detail?: { latency?: { dataAgeMs: number; detectComputeMs: number } };
+  detail?: { latency?: { handoffMs: number; detectComputeMs: number } };
 }
 
 export function computeShadowStats(
@@ -90,7 +90,7 @@ export function computeShadowStats(
       ? (last - first) / 3_600_000
       : 0;
 
-  const dataAges = latencies(recs, "dataAgeMs");
+  const handoffs = latencies(recs, "handoffMs");
   const detectMs = latencies(recs, "detectComputeMs");
   const grossPositive = gross.filter((g) => g > 0n).length;
   const netPositive = net.filter((n) => n > 0n).length;
@@ -113,8 +113,8 @@ export function computeShadowStats(
     simFailures,
     revertRate: rate(simFailures, opportunities.length),
     latency: {
-      dataAgeMsP50: percentile(dataAges, 50),
-      dataAgeMsP95: percentile(dataAges, 95),
+      handoffMsP50: percentile(handoffs, 50),
+      handoffMsP95: percentile(handoffs, 95),
       detectComputeMsP50: percentile(detectMs, 50),
       detectComputeMsP95: percentile(detectMs, 95),
     },
@@ -123,7 +123,7 @@ export function computeShadowStats(
 
 function latencies(
   recs: ParsedRecord[],
-  key: "dataAgeMs" | "detectComputeMs",
+  key: "handoffMs" | "detectComputeMs",
 ): number[] {
   return recs
     .map((r) => r.detail?.latency?.[key])

@@ -140,11 +140,15 @@ async function main(): Promise<void> {
       slippageToleranceBps: cfg.slippageToleranceBps,
       estTxFeeQuote,
     });
-    // Detection-latency instrumentation (Phase-2 deliverable): how stale
-    // was the freshest input, and how long did the decision itself take.
+    // Detection-latency instrumentation (Phase-2 deliverable): handoffMs is
+    // the acquisition→decision latency (time from when we started fetching
+    // the freshest input to the decision being ready — RPC round-trip +
+    // decode + detect for polling; ~0 for a push source). It is NOT chain
+    // staleness: it does not include poll-interval sampling lag.
     const latency = {
-      dataAgeMs:
-        Date.now() - Math.max(pair.cpmm.fetchedAtMs, pair.whirlpool.fetchedAtMs),
+      handoffMs:
+        Date.now() -
+        Math.max(pair.cpmm.fetchStartedAtMs, pair.whirlpool.fetchStartedAtMs),
       detectComputeMs: performance.now() - detectStart,
     };
 
@@ -286,7 +290,7 @@ function sampleSnapshotPair(pair: PairInfo, tickIndex: number): SnapshotPair {
     dex: "raydium-cpmm",
     poolAddress: "sample",
     pair,
-    fetchedAtMs: Date.now(),
+    fetchStartedAtMs: Date.now(),
     slot: 0,
     source: "fee-sample",
     baseReserve: 1n,
@@ -298,7 +302,7 @@ function sampleSnapshotPair(pair: PairInfo, tickIndex: number): SnapshotPair {
     dex: "orca-whirlpool",
     poolAddress: "sample",
     pair,
-    fetchedAtMs: Date.now(),
+    fetchStartedAtMs: Date.now(),
     slot: 0,
     source: "fee-sample",
     sqrtPriceX64: 1n,

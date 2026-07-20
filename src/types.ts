@@ -27,8 +27,14 @@ export interface SnapshotBase {
   dex: Dex;
   poolAddress: string;
   pair: PairInfo;
-  /** Unix ms when the underlying account data was fetched/emitted. */
-  fetchedAtMs: number;
+  /**
+   * Unix ms when acquisition of this data STARTED — for polling, captured
+   * immediately before the RPC read (not after); for push sources (Geyser)
+   * the moment the update arrived. Drives handoffMs = detectTime -
+   * fetchStartedAtMs (the acquisition→decision latency). NOTE: this is not
+   * block/chain time, so it does not capture poll-interval sampling lag.
+   */
+  fetchStartedAtMs: number;
   /** Slot the data was observed at, when known (0 for synthetic). */
   slot: number;
   /** Which source produced this ("polling" | "synthetic" | future adapters). */

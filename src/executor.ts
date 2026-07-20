@@ -50,7 +50,7 @@ export interface ExecuteMeta {
    */
   computeCosts?: (cuLimit: number | null) => NonNullable<AttemptRecord["costs"]>;
   /** Detection-latency measurements, merged into the record's detail. */
-  latency?: { dataAgeMs: number; detectComputeMs: number };
+  latency?: { handoffMs: number; detectComputeMs: number };
 }
 
 /** Thrown by the shadow-mode send transport: reaching it means layer 2 failed. */

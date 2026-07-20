@@ -78,6 +78,9 @@ export class PollingPriceSource implements PriceSource {
     raydiumFeeBps: number,
   ) {
     await this.limiter.acquire();
+    // Stamp acquisition-start BEFORE the RPC so handoffMs captures the
+    // round-trip; all four accounts come from this one batch read.
+    const fetchStartedAtMs = Date.now();
     const { context, value } =
       await this.connection.getMultipleAccountsInfoAndContext([
         raydiumPool,
@@ -98,14 +101,13 @@ export class PollingPriceSource implements PriceSource {
     const vault1 = decodeTokenAccountAmount(vault1Acc.data) - pool.feesToken1;
 
     const baseIsToken0 = pool.token0Mint.toBase58() === this.cfg.pair.baseMint;
-    const now = Date.now();
 
     const cpmm: PoolSnapshot = {
       kind: "cpmm",
       dex: "raydium-cpmm",
       poolAddress: raydiumPool.toBase58(),
       pair: this.cfg.pair,
-      fetchedAtMs: now,
+      fetchStartedAtMs,
       slot: context.slot,
       source: this.name,
       baseReserve: baseIsToken0 ? vault0 : vault1,
@@ -128,7 +130,7 @@ export class PollingPriceSource implements PriceSource {
       dex: "orca-whirlpool",
       poolAddress: orcaPool.toBase58(),
       pair: this.cfg.pair,
-      fetchedAtMs: now,
+      fetchStartedAtMs,
       slot: context.slot,
       source: this.name,
       sqrtPriceX64: whirl.sqrtPriceX64,

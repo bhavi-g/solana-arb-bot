@@ -55,6 +55,9 @@ export class OrcaOrcaPollingSource implements PriceSource {
       const cycleStart = Date.now();
       try {
         await this.limiter.acquire();
+        // Stamp acquisition-start BEFORE the RPC so handoffMs captures the
+        // round-trip; both legs come from this one batch read.
+        const fetchStartedAtMs = Date.now();
         const { context, value } =
           await this.fetcher.getMultipleAccountsInfoAndContext([a, b]);
         this.limiter.notifySuccess();
@@ -63,8 +66,8 @@ export class OrcaOrcaPollingSource implements PriceSource {
           throw new Error("one or both watched whirlpools not found on this cluster");
         }
         const pair: SnapshotPair = {
-          cpmm: this.snapshot(a, this.decode(accA.data), context.slot),
-          whirlpool: this.snapshot(b, this.decode(accB.data), context.slot),
+          cpmm: this.snapshot(a, this.decode(accA.data), context.slot, fetchStartedAtMs),
+          whirlpool: this.snapshot(b, this.decode(accB.data), context.slot, fetchStartedAtMs),
         };
         await onPair(pair);
       } catch (e) {
@@ -84,6 +87,7 @@ export class OrcaOrcaPollingSource implements PriceSource {
     address: PublicKey,
     w: WhirlpoolState,
     slot: number,
+    fetchStartedAtMs: number,
   ): PoolSnapshot {
     if (
       w.tokenMintA.toBase58() !== this.cfg.pair.baseMint ||
@@ -100,7 +104,7 @@ export class OrcaOrcaPollingSource implements PriceSource {
       dex: "orca-whirlpool",
       poolAddress: address.toBase58(),
       pair: this.cfg.pair,
-      fetchedAtMs: Date.now(),
+      fetchStartedAtMs,
       slot,
       source: this.name,
       sqrtPriceX64: w.sqrtPriceX64,
