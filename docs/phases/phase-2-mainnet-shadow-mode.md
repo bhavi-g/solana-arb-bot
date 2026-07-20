@@ -107,21 +107,25 @@ whole exit signal).
   are net-positive AFTER full realistic costs, not just gross-positive.
   This number is the actual go/no-go signal for Phase 3.
 
-## Run result — two-Orca venue (interim, documented negative finding)
+## Run result — two-Orca venue, FINAL (interim, documented negative finding)
 
 **Run:** two-Orca shadow, `mainnet-beta`, `polling`, PHASE=2 (send
 structurally disabled). Pools `Czfq3xZZ…44zE` (4 bps) vs `FpCMFDFG…o28Q`
 (2 bps). Config: `TRADE_SIZE_QUOTE=100 USDC`,
 `MIN_PROFIT_THRESHOLD_QUOTE=10000` (0.01 USDC), `SLIPPAGE_TOLERANCE_BPS=50`,
-`POLL_INTERVAL_MS=1500`.
-**Window analysed:** 2026-07-17T17:13:56Z → 2026-07-20T04:32:36Z (59.3 h,
-ongoing), **28,469 cycles** (all `mainnet-beta`/`polling`; 258 earlier
-Phase-1 devnet records in `attempts.jsonl` excluded by run-start filter).
+`POLL_INTERVAL_MS=1500`. Started 2026-07-17T17:13:37Z, closed at its
+scheduled 72h mark 2026-07-20T17:13:37Z.
+**Window analysed (full, closed):** 2026-07-17T17:13:56Z →
+2026-07-20T17:03:05Z (71.8 h), **42,323 cycles** (all
+`mainnet-beta`/`polling`; 313 out-of-window records — earlier Phase-1
+devnet plus a handful just past the formal close — excluded by the
+run-window filter). Frozen dataset: `logs/attempts-72h-two-orca.jsonl`.
 
-**Result — ZERO signal:**
-- **0 opportunities** (gross *or* net) across all 28,469 cycles — every
+**Result — ZERO signal, confirmed at full window close:**
+- **0 opportunities** (gross *or* net) across all 42,323 cycles — every
   cycle a correct `no-opportunity`.
-- **0 sends** (shadow-mode integrity intact; ADR-0008 held).
+- **0 sends** (shadow-mode integrity intact; ADR-0008 held) — confirmed
+  end-to-end, from run start through graceful SIGINT shutdown.
 
 **Interpretation — this is useful NEGATIVE DATA, not a failure.** The two
 deep same-pair Orca pools stay tightly aligned (~0–2 bps gap) while a round
@@ -129,16 +133,35 @@ trip costs ~1 USDC in pool fees + slippage, so the price gap never clears
 cost + threshold. This matches the venue-decision caveat recorded when
 Option 3 was chosen as a *deliberate interim* venue: profitable
 opportunities were expected to be rare-to-none. The pipeline itself is
-verified healthy (28k clean cycles, correct decisions, zero sends) — the
+verified healthy (42k clean cycles, correct decisions, zero sends) — the
 absence of signal is a property of the venue, not a bug. It confirms the
 need for the cross-DEX Option-1 (Raydium CLMM) venue — whose decoder
-foundation is now built and merged (`ade7628`) — to produce the real
+foundation is built and merged (`ade7628`), and whose `swap_v2` tx-builder
+foundation is now in design (spec: `docs/superpowers/specs/
+2026-07-20-raydium-clmm-swapv2-builder-design.md`) — to produce the real
 Phase-3 go/no-go signal.
 
-**⚠️ Latency caveat:** `dataAgeMs` figures from this run are NOT
-trustworthy and must not be cited. Under investigation: the metric as
-computed measures intra-process receipt→detect handoff (≈0; p50=p95=0,
-96.2% exactly 0), not data staleness relative to the chain, and it reads
-≈0 for Geyser too — so it cannot serve the polling-vs-Geyser comparison
-until redefined. Diagnosis + proposed fix pending owner review; no change
-applied (fix requires restarting the live shadow).
+**✅ Latency metric — FIXED.** The `dataAgeMs` bug flagged mid-run is
+resolved and merged (`19975fd`, merged to master at window close in
+`8077933`). Root cause: the field (then `fetchedAtMs`) was stamped by each
+source *after* the RPC round-trip completed, and `onPair` ran
+synchronously — so the metric measured a sub-millisecond receipt→detect
+handoff (≈0; the 71.8h run showed p50=p95=0, 96.4% exactly 0), not data
+staleness, and it would have read ≈0 for Geyser too, defeating the planned
+polling-vs-Geyser comparison. Fix: the field is renamed
+`fetchStartedAtMs` and is now stamped immediately *before* the batch RPC
+read in both polling sources; the derived record field is renamed
+`dataAgeMs` → `handoffMs` (acquisition→decision latency — RPC round-trip
++ decode + detect for polling, ~0 for a push source). Documented as NOT
+capturing poll-interval sampling lag (a separate, deferred metric).
+**Live-verified working** immediately after the restart below: `handoffMs`
+values are real and varied (e.g. 49, 55, 121, 149, 293, 1416 ms) instead
+of flooring to 0.
+
+**Restart:** a fresh two-Orca run started 2026-07-20T17:20:33Z on the
+corrected code (same pools/config as above), logging to
+`logs/shadow-run-2-corrected.log`
+(marker: `logs/shadow-run-2.start`). `logs/attempts.jsonl` continues to
+accumulate across the restart (the closed window's records are preserved
+separately in `logs/attempts-72h-two-orca.jsonl`; any future analysis of
+the new run should filter `timestamp >= 2026-07-20T17:20:33Z`).
