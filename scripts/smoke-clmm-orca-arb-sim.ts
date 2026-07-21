@@ -5,19 +5,32 @@
  * owner). The live-verification leg the design spec requires. Only
  * simulateTransaction is ever called; nothing is sent.
  *
+ * Sell-leg sizing: a preliminary buy-leg-only simulation measures the base
+ * (SOL) amount the buy leg would actually produce for the real quoteIn
+ * (via the post-sim balance of the surrogate's SOL ATA), so the sell leg
+ * in the full two-leg tx trades at realistic size instead of 1 lamport.
+ *
  * Pass: for both directions, both program IDs appear in the sim logs AND
  * err is null OR a slippage/amount-class error (a well-formed tx whose
  * round-trip simply wasn't profitable). A malformed-account/PDA error
  * (a leg never reached its program) is the only FAIL.
  */
 import "dotenv/config";
-import { Connection, PublicKey } from "@solana/web3.js";
+import {
+  Connection,
+  PublicKey,
+  TransactionMessage,
+  VersionedTransaction,
+} from "@solana/web3.js";
 import { decodeClmmPool, decodeClmmAmmConfigFeeBps } from "../src/decode/clmm.js";
 import { decodeWhirlpool } from "../src/decode/orcaWhirlpool.js";
 import {
   buildClmmOrcaArbTransaction,
   type ClmmOrcaBuildContext,
 } from "../src/txbuilder/clmmOrca.js";
+import { buildClmmSwapV2Ix } from "../src/txbuilder/raydiumClmm.js";
+import { buildWhirlpoolSwapIx } from "../src/txbuilder/orcaWhirlpool.js";
+import { associatedTokenAddress, TOKEN_PROGRAM_ID } from "../src/txbuilder/index.js";
 import type { Opportunity } from "../src/types.js";
 
 const CLMM_POOL = "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv";
@@ -36,6 +49,113 @@ function acceptable(err: unknown, logs: string[]): boolean {
   if (err === null) return true; // a real gap cleared
   // Slippage/amount-class errors = well-formed tx, unprofitable round-trip.
   return /Custom|amount|Slippage|TooLittle|MinimumOut|0x1771/i.test(JSON.stringify(err));
+}
+
+/** SPL Token account layout: amount is a u64 LE at byte offset 64. */
+function tokenAmountFromAccountData(base64Data: string): bigint {
+  return Buffer.from(base64Data, "base64").readBigUInt64LE(64);
+}
+
+/** Buy-leg-only ix (quote -> base), reusing the exact account wiring buildClmmOrcaArbTransaction uses. */
+function buildClmmBuyIx(
+  ctx: ClmmOrcaBuildContext,
+  owner: PublicKey,
+  baseAta: PublicKey,
+  quoteAta: PublicKey,
+  quoteIn: bigint,
+) {
+  const s = ctx.clmm.state;
+  return buildClmmSwapV2Ix({
+    programId: ctx.clmm.programId,
+    payer: owner,
+    ammConfig: s.ammConfig,
+    poolState: ctx.clmm.poolAddress,
+    inputTokenAccount: quoteAta,
+    outputTokenAccount: baseAta,
+    inputVault: s.tokenVault1,
+    outputVault: s.tokenVault0,
+    observationState: s.observationKey,
+    inputVaultMint: s.tokenMint1,
+    outputVaultMint: s.tokenMint0,
+    tickCurrentIndex: ctx.clmm.tickCurrentIndex,
+    tickSpacing: s.tickSpacing,
+    amount: quoteIn,
+    otherAmountThreshold: 1n, // permissive: only probing the real output
+    inputIsToken0: false,
+  });
+}
+
+function buildWhirlpoolBuyIx(
+  ctx: ClmmOrcaBuildContext,
+  owner: PublicKey,
+  baseAta: PublicKey,
+  quoteAta: PublicKey,
+  quoteIn: bigint,
+) {
+  const s = ctx.whirlpool.state;
+  return buildWhirlpoolSwapIx({
+    programId: ctx.whirlpool.programId,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    tokenAuthority: owner,
+    whirlpool: ctx.whirlpool.poolAddress,
+    tokenOwnerAccountA: baseAta,
+    tokenVaultA: s.tokenVaultA,
+    tokenOwnerAccountB: quoteAta,
+    tokenVaultB: s.tokenVaultB,
+    tickCurrentIndex: ctx.whirlpool.tickCurrentIndex,
+    tickSpacing: s.tickSpacing,
+    amount: quoteIn,
+    otherAmountThreshold: 1n, // permissive: only probing the real output
+    aToB: false,
+  });
+}
+
+/**
+ * Simulates ONLY the buy leg and returns the base (SOL) amount it actually
+ * produced, measured from the surrogate's SOL ATA post-sim balance minus
+ * its current on-chain balance. Used to size the sell leg realistically
+ * instead of the placeholder baseOut=1n.
+ */
+async function probeBuyLegOutput(
+  connection: Connection,
+  ctx: ClmmOrcaBuildContext,
+  buyOn: "raydium-clmm" | "orca-whirlpool",
+  quoteIn: bigint,
+  owner: PublicKey,
+  baseAta: PublicKey,
+  quoteAta: PublicKey,
+  blockhash: string,
+): Promise<bigint> {
+  const ix =
+    buyOn === "raydium-clmm"
+      ? buildClmmBuyIx(ctx, owner, baseAta, quoteAta, quoteIn)
+      : buildWhirlpoolBuyIx(ctx, owner, baseAta, quoteAta, quoteIn);
+  const message = new TransactionMessage({
+    payerKey: owner,
+    recentBlockhash: blockhash,
+    instructions: [ix],
+  }).compileToV0Message();
+  const tx = new VersionedTransaction(message);
+
+  const pre = await connection.getTokenAccountBalance(baseAta);
+  const sim = await connection.simulateTransaction(tx, {
+    sigVerify: false,
+    replaceRecentBlockhash: true,
+    commitment: "processed",
+    accounts: { encoding: "base64", addresses: [baseAta.toBase58()] },
+  });
+  if (sim.value.err) {
+    throw new Error(
+      `[probe] buy-leg-only sim failed (buyOn=${buyOn}): ${JSON.stringify(sim.value.err)}`,
+    );
+  }
+  const postData = sim.value.accounts?.[0]?.data?.[0];
+  if (!postData) throw new Error("[probe] simulateTransaction returned no account data");
+  const produced = tokenAmountFromAccountData(postData) - BigInt(pre.value.amount);
+  if (produced <= 0n) {
+    throw new Error(`[probe] non-positive base output produced (buyOn=${buyOn}): ${produced}`);
+  }
+  return produced;
 }
 
 async function main(): Promise<void> {
@@ -84,12 +204,16 @@ async function main(): Promise<void> {
     whirlpool: { programId: orcaProgramId, poolAddress: orcaPool, state: orcaState, tickCurrentIndex: orcaState.tickCurrentIndex },
   });
 
-  // 100 USDC in, buy-leg min-out relaxed to 1 lamport-SOL (buy leg never
-  // gates the shape check); the sell leg's min-out is quoteIn+0 per the
-  // builder — see the pass criterion above for why err may be a slippage
-  // error rather than null.
+  // 100 USDC in. baseOut is measured per-direction below (probeBuyLegOutput)
+  // rather than hardcoded, so both the buy leg's min-out AND the sell leg's
+  // traversal size reflect what the buy leg would actually produce — see
+  // the pass criterion above for why err may be a slippage error rather
+  // than null.
   const inputUsdc = 100_000_000n; // 100 USDC
-  const opp = (buyOn: "raydium-clmm" | "orca-whirlpool"): Opportunity => ({
+  const opp = (
+    buyOn: "raydium-clmm" | "orca-whirlpool",
+    baseOut: bigint,
+  ): Opportunity => ({
     decision: "opportunity",
     direction: {
       buyOn,
@@ -97,16 +221,39 @@ async function main(): Promise<void> {
     },
     gapBps: 0,
     quoteIn: inputUsdc,
-    baseOut: 1n, // buy-leg min-out (relaxed)
+    baseOut,
     quoteOut: inputUsdc,
     estNetProfit: 0n,
     minProfitThreshold: 0n,
   });
 
+  const baseMint = new PublicKey(SOL_MINT);
+  const quoteMint = new PublicKey(USDC_MINT);
+  const baseAta = associatedTokenAddress(surrogate, baseMint);
+  const quoteAta = associatedTokenAddress(surrogate, quoteMint);
+
   let allOk = true;
   for (const buyOn of ["raydium-clmm", "orca-whirlpool"] as const) {
     const { blockhash } = await connection.getLatestBlockhash();
-    const tx = buildClmmOrcaArbTransaction(ctx(blockhash), opp(buyOn));
+    const probedBaseOut = await probeBuyLegOutput(
+      connection,
+      ctx(blockhash),
+      buyOn,
+      inputUsdc,
+      surrogate,
+      baseAta,
+      quoteAta,
+      blockhash,
+    );
+    // 0.5% buffer below the probed output: the buy-leg min-out and the
+    // sell-leg traversal amount both derive from this, so a tight (exact)
+    // threshold risks a spurious FAIL from state drift between the probe
+    // sim and the full-tx sim a moment later.
+    const realisticBaseOut = (probedBaseOut * 995n) / 1000n;
+    console.log(
+      `\n[smoke] direction buyOn=${buyOn}: probed buy-leg output ${probedBaseOut} lamports-SOL, using baseOut=${realisticBaseOut} (0.5% buffer) for the sell leg`,
+    );
+    const tx = buildClmmOrcaArbTransaction(ctx(blockhash), opp(buyOn, realisticBaseOut));
     const sim = await connection.simulateTransaction(tx, {
       sigVerify: false,
       replaceRecentBlockhash: true,
