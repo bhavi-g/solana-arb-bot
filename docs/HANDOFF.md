@@ -1,50 +1,109 @@
 # Project Handoff
 
 ## Last updated
-2026-07-17, ~17:15 UTC. Unattended session (see
-`docs/sessions/2026-07-17.md`). **PHASE 2 IS RUNNING: a 72-hour mainnet
-shadow-mode collection started 2026-07-17T17:13:37Z (owner Decision:
-Option 3, two-Orca venue).**
+2026-07-22, ~13:45 UTC. **PHASE 1 DONE. PHASE 2 MOSTLY DONE** — the two
+foundational pieces of work that remained (a trustworthy latency metric and
+the real cross-DEX venue) are now both built, verified, and merged. What is
+left is purely operational: cut the live shadow run over to the new
+cross-DEX venue and let it collect the actual Phase-3 go/no-go signal.
 
-**WHAT IS CURRENTLY RUNNING**
-- `src/main.ts` polling mainnet in the background (log:
-  `logs/shadow-run-72h.log`, start time in `logs/shadow-run-72h.start`).
-  Command is the `.env.example` Phase-2 `orca-orca` block. Structurally
-  send-disabled (ADR-0008) — read-only, zero real transactions.
-- Venue: two deep Orca SOL/USDC whirlpools (Raydium CPMM SOL/USDC is too
-  thin on mainnet — $429 TVL — so it fails the depth gate; owner chose
-  two-Orca as a **documented interim** while a Raydium CLMM decoder is
-  built next). Pools (both cleared the 100k-USDC gate):
-  `Czfq3x…44zE` (4 bps, $32.5M) and `FpCMFD…o28Q` (2 bps, $579k).
-- Stop it after 72h (≈2026-07-20T17:13Z) with `pkill -f "tsx src/main.ts"`;
-  analyze with `npx tsx scripts/shadow-stats.ts --cluster mainnet-beta`.
+### WHAT IS CURRENTLY RUNNING (live, right now)
+- **`shadow-run-2`** — a two-Orca mainnet shadow run on the *corrected*
+  (handoffMs-fixed) code. Background `tsx src/main.ts` (node PID 11098 as
+  of this writing), log `logs/shadow-run-2-corrected.log`, marker
+  `logs/shadow-run-2.start`. `VENUE=orca-orca`, `mainnet-beta`, `polling`,
+  PHASE=2, send structurally disabled (ADR-0008). Wallet
+  `AN2ovAtpnHhMc2yVSYwZkZMVTEF8iwbrYPFQVeKKQebs`. Pools
+  `Czfq3xZZ…44zE` (4 bps) vs `FpCMFDFG…o28Q` (2 bps).
+- **Status as of 2026-07-22T13:44Z:** started 2026-07-20T17:20:33Z, so
+  **~44 h in**. **29,537 cycles, ALL `no-opportunity`, ZERO sends** — same
+  zero-signal picture as the closed 72h run (gaps oscillate −1…+1 bps; a
+  round trip nets ≈ −1.04 USDC, below the 0.01-USDC threshold). No fixed
+  stop time was set for this restart; it is just accumulating clean
+  negative data on the fixed code. It can be stopped any time with
+  `pkill -f "tsx src/main.ts"` — **its purpose (proving the metric fix live
+  + healthy pipeline) is already served; there is no reason to keep it
+  running instead of cutting over to `clmm-orca`.**
+- **`handoffMs` now real in this run** (e.g. 43 ms in the first record),
+  not the flat 0 the old buggy metric produced.
 
-**EXPECTATION / CAVEAT**: two deep same-pair Orca pools are kept aligned
-by the market (observed gap ~0–2 bps), and a round trip costs ~1 USDC, so
-**profitable opportunities will be rare-to-none** — the run is expected to
-be mostly `no-opportunity`. That "≈0 net-positive between two Orca pools"
-IS honest interim data, but the real Phase-3 go/no-go signal needs the
-**cross-DEX** venue: Option 1, a Raydium CLMM decoder, is the planned
-NEXT venue (not abandoned).
+### WHAT'S DONE SINCE THE 2026-07-17 HANDOFF
 
-**VERIFIED THIS SESSION**
-- Two-whirlpool arb tx SIMULATES cleanly on real mainnet as the surrogate
-  (`scripts/smoke-two-whirlpool-sim.ts`: `err:null`, 56,089 CU, both Orca
-  legs execute) — only `simulateTransaction` was ever called, no send.
-- 129 unit tests pass; typecheck clean.
-- Structural send-disable (ADR-0008): PHASE=2 → `sendEnabled=false`,
-  executor refuses, send transport throws, shadow txs unsigned. PHASE>=3
-  refuses to start. Zero `sent` records on mainnet (grep-verified).
-- Cost model (ADR-0009): gross AND net (priority fee + modeled 0.55 Jito
-  tip) on every opportunity record.
-- Geyser gRPC source is code-complete (`src/datasource/geyser.ts`) but NOT
-  runnable: needs an owner-procured endpoint (money item; not on Helius
-  free tier). Not wired for the two-Orca venue yet.
+**Two-Orca 72h run — FINAL, documented ZERO-signal finding.** Ran
+2026-07-17T17:13:37Z → its scheduled 72h close 2026-07-20T17:13:37Z.
+Window analysed 71.8 h, **42,323 cycles: 0 opportunities (gross or net),
+0 sends** — every cycle a correct `no-opportunity`. Frozen dataset
+`logs/attempts-72h-two-orca.jsonl`; full write-up in
+`docs/phases/phase-2-mainnet-shadow-mode.md` ("Run result — two-Orca
+venue, FINAL"). This is useful NEGATIVE data, not a failure: two deep
+same-pair Orca pools stay aligned (~0–2 bps) while a round trip costs
+~1 USDC, so the gap never clears cost. Confirms the need for a **cross-DEX**
+venue to produce a real go/no-go signal.
 
-**NEW CODE FOR THE TWO-ORCA VENUE (T35–T39)**: pool identity in
-`ArbDirection`; `src/txbuilder/twoWhirlpool.ts`;
-`src/datasource/orcaOrcaPolling.ts`; `VENUE` config switch + main.ts
-wiring; depth + sim smoke scripts.
+**`handoffMs` (was `dataAgeMs`) latency bug — FIXED & live-verified.**
+Root cause: the snapshot timestamp was stamped *after* the RPC round-trip,
+and `onPair` ran synchronously, so the metric measured a sub-ms
+receipt→detect handoff (floored to 0; p50=p95=0, 96%+ exactly 0) rather
+than data staleness — and would have read ≈0 for Geyser too, defeating the
+planned polling-vs-Geyser comparison. Fix (`19975fd`, merged at window
+close `8077933`): field renamed `fetchStartedAtMs`, stamped immediately
+*before* the batch RPC read in both polling sources; the record field
+`dataAgeMs` → `handoffMs` (acquisition→decision latency). Live-verified on
+the restart: real varied values (49/55/121/149/293/1416 ms). Documented as
+NOT capturing poll-interval sampling lag (separate, deferred metric).
+
+**Raydium CLMM cross-DEX venue — BUILT, TESTED, MERGED (three stacked
+deliverables, Option 1).** This is the venue that can finally produce a
+real cross-DEX signal — Raydium CLMM vs Orca whirlpool, the arbitrage the
+strategy actually targets.
+1. **CLMM decoder + math foundation** (`ade7628`) — `decode/clmm.ts`
+   (`decodeClmmPool`, `decodeClmmAmmConfigFeeBps`), `toClmmSnapshot`
+   adapter reusing the unchanged whirlpool spot-math with ZERO `detect.ts`
+   change. Offsets dual-source-verified (pinned raydium-clmm `@03b44b7` +
+   live pool `3ucNos…Uxv`, $5.9M/4bps); SOL is `mint_0` (normal
+   orientation).
+2. **CLMM `swap_v2` instruction builder** (`659716f`, T49–T51) —
+   `buildClmmSwapV2Ix` + tick-array/bitmap PDA helpers
+   (`src/txbuilder/raydiumClmm.ts`). Live mainnet sim `err:null`,
+   44,028 CU. The sim caught a real on-chain bug: the deployed program
+   rejects the exact `MIN`/`MAX_SQRT_PRICE_X64` boundary, so the client
+   must send `MIN+1`/`MAX−1` — fixed and re-verified against live source
+   and the vendored SDK.
+3. **`clmm-orca` runnable venue** (`3964374`, +8fd29d6) — wires the two
+   foundations into a live venue. `buildClmmOrcaArbTransaction`
+   (`src/txbuilder/clmmOrca.ts`, one atomic tx: CLMM leg + Orca leg, shared
+   SOL/USDC ATAs), `ClmmOrcaPollingSource`
+   (`src/datasource/clmmOrcaPolling.ts`, one batched `getMultipleAccounts`
+   per cycle, CLMM fee resolved once at startup from the AmmConfig),
+   `VENUE=clmm-orca` config/validation, `setUpClmmOrca` + `.env.example`
+   block. **REAL PROOF via mainnet simulation** (read-only,
+   `scripts/smoke-clmm-orca-arb-sim.ts`): both direction assignments reach
+   BOTH program IDs and produce well-formed txs; the follow-up `8fd29d6`
+   sizes the sell leg from the probed buy-leg output so both legs execute
+   at realistic size (closing the earlier `baseOut=1n` gap). Built via
+   subagent-driven TDD in an isolated worktree; per-task + whole-branch
+   reviews; 159 tests pass, typecheck clean. Isolation held —
+   additive-only, zero edits to any do-not-touch file, live `shadow-run-2`
+   untouched.
+
+### WHAT'S LEFT IN PHASE 2 (operational, not code)
+1. **Cut the live shadow run over from `orca-orca` to `clmm-orca`** — stop
+   `shadow-run-2`, start a fresh run with the `.env.example` `clmm-orca`
+   block (CLMM pool `3ucNos…Uxv` + Orca whirlpool `Czfq3x…44zE`). This is
+   the run that produces the actual net-positive-after-cost rate = the
+   Phase-3 go/no-go signal.
+2. **Capture ADR-0010** ("Raydium CLMM as cross-DEX shadow venue") once
+   that run produces its first signal.
+3. Then the Phase-2 exit criteria (real detection-rate data + explicit
+   data-backed Phase-3 decision) can finally be marked met.
+
+### STILL-STANDING CAVEATS
+- **Geyser gRPC** (`src/datasource/geyser.ts`) is code-complete but NOT
+  runnable — needs an owner-procured endpoint (money item; not on Helius
+  free tier) and is not wired for any venue yet.
+- Send path stays hard-disabled (ADR-0008, 3 layers + unsigned shadow txs)
+  through all of Phase 2. PHASE≥3 refuses to start. Zero mainnet sends
+  ever, grep-verified.
 
 Earlier baselines below left intact for reference.
 
