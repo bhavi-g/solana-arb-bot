@@ -1,7 +1,10 @@
 # Phase 2 — Mainnet Shadow Mode
 
-## Status: IN PROGRESS — code complete (T27–T33); shadow run BLOCKED on
-## owner venue decision (see 2026-07-17 session log BLOCKERS)
+## Status: IN PROGRESS — venue decided and BUILT. The two-Orca interim run
+## is done (42,323 cycles, zero signal — documented negative finding) and
+## the cross-DEX `clmm-orca` venue is built, tested, and merged (`3964374`).
+## Remaining is operational: cut the live shadow run over to `clmm-orca` to
+## collect the real Phase-3 go/no-go signal, then capture ADR-0010.
 
 Build-task state (2026-07-17): (1) mainnet config profile ✔ (.env.example
 Phase-2 block; ADR-0008 send-disable enforced at PHASE=2). (2) price feed ✔
