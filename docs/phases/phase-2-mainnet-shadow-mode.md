@@ -52,6 +52,36 @@ before a single cent is risked.
 Update session log with the four-part summary plus shadow-mode stats
 (opportunities/hour, avg simulated profit, revert rate).
 
+## Phase-3 go/no-go bar — owner-set, recorded 2026-07-22 BEFORE the
+## `clmm-orca` run's results are seen
+
+Owner's decision rule, stated in advance of any `clmm-orca` data so it
+can't be rationalized after the fact: **a few genuinely net-profitable
+opportunities per day, consistently across multiple days** — not a single
+lucky spike — before this is considered worth pursuing into Phase 3.
+
+**What "net-profitable" means here, precisely** (see `src/detect.ts`,
+`src/costs.ts`, `src/stats.ts`): a poll cycle is logged as
+`decision:"opportunity"` only if the better direction's profit, net of a
+simple estimated base tx fee, clears `MIN_PROFIT_THRESHOLD_QUOTE` (0.01
+USDC) — this is a loose gate, NOT the number to judge the bar against.
+Every such opportunity is then costed fully via `computeCosts()`: gross
+profit − base fee − priority fee (from the live compute-unit price) −
+modeled Jito tip (55% of gross, ADR-0009 — modeled only, never paid,
+never sent). That produces `costs.netProfit`; `scripts/shadow-stats.ts`
+reports how many of those clear zero as `netPositive` (count) and
+`netPositiveRate` (fraction of opportunities). **The bar is judged against
+`netPositive`, converted to a per-day rate**
+(`netPositive / hours * 24`), not against the raw `opportunitiesPerHour`
+figure, which only reflects the loose base-fee-only detect-time gate and
+would overstate the signal.
+
+**How this will be checked:** `npx tsx scripts/shadow-stats.ts --cluster
+mainnet-beta --since <window>` gives `opportunities`, `netPositive`,
+`netPositiveRate`, and `hours` for a given window. Multiple non-overlapping
+`--since` windows (e.g. day-by-day) will be compared, not just the
+cumulative total, to check for consistency vs. a one-off spike.
+
 ## Venue decision — 2026-07-17 (owner: Option 3, deliberate interim step)
 
 The mainnet Raydium **CPMM** SOL/USDC venue is unusable for shadow mode:

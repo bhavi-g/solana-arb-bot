@@ -1,31 +1,55 @@
 # Project Handoff
 
 ## Last updated
-2026-07-22, ~13:45 UTC. **PHASE 1 DONE. PHASE 2 MOSTLY DONE** — the two
-foundational pieces of work that remained (a trustworthy latency metric and
-the real cross-DEX venue) are now both built, verified, and merged. What is
-left is purely operational: cut the live shadow run over to the new
-cross-DEX venue and let it collect the actual Phase-3 go/no-go signal.
+2026-07-22, ~13:59 UTC. **PHASE 1 DONE. PHASE 2 MOSTLY DONE, CROSS-DEX
+SIGNAL RUN NOW LIVE.** The two foundational pieces (a trustworthy latency
+metric, the real cross-DEX venue) were built, verified, and merged earlier
+today; this update covers cutting the live shadow run over from the
+two-Orca interim to `clmm-orca` — the run that produces the actual Phase-3
+go/no-go signal — and recording the owner's go/no-go bar in advance.
 
 ### WHAT IS CURRENTLY RUNNING (live, right now)
-- **`shadow-run-2`** — a two-Orca mainnet shadow run on the *corrected*
-  (handoffMs-fixed) code. Background `tsx src/main.ts` (node PID 11098 as
-  of this writing), log `logs/shadow-run-2-corrected.log`, marker
-  `logs/shadow-run-2.start`. `VENUE=orca-orca`, `mainnet-beta`, `polling`,
-  PHASE=2, send structurally disabled (ADR-0008). Wallet
-  `AN2ovAtpnHhMc2yVSYwZkZMVTEF8iwbrYPFQVeKKQebs`. Pools
-  `Czfq3xZZ…44zE` (4 bps) vs `FpCMFDFG…o28Q` (2 bps).
-- **Status as of 2026-07-22T13:44Z:** started 2026-07-20T17:20:33Z, so
-  **~44 h in**. **29,537 cycles, ALL `no-opportunity`, ZERO sends** — same
-  zero-signal picture as the closed 72h run (gaps oscillate −1…+1 bps; a
-  round trip nets ≈ −1.04 USDC, below the 0.01-USDC threshold). No fixed
-  stop time was set for this restart; it is just accumulating clean
-  negative data on the fixed code. It can be stopped any time with
-  `pkill -f "tsx src/main.ts"` — **its purpose (proving the metric fix live
-  + healthy pipeline) is already served; there is no reason to keep it
-  running instead of cutting over to `clmm-orca`.**
-- **`handoffMs` now real in this run** (e.g. 43 ms in the first record),
-  not the flat 0 the old buggy metric produced.
+- **`shadow-run-3-clmm-orca`** — the real cross-DEX shadow run: Raydium
+  CLMM vs Orca whirlpool, mainnet. Background `npm exec tsx src/main.ts`,
+  log `logs/shadow-run-3-clmm-orca.log`, start marker
+  `logs/shadow-run-3-clmm-orca.start` (**2026-07-22T13:58:56Z**).
+  `VENUE=clmm-orca`, `mainnet-beta`, `polling`, PHASE=2, send structurally
+  disabled (ADR-0008). Wallet `AN2ovAtpnHhMc2yVSYwZkZMVTEF8iwbrYPFQVeKKQebs`.
+  Venue: CLMM pool `3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv` (4 bps,
+  $5.9M TVL) vs Orca whirlpool `Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE`
+  (4 bps, $32.5M TVL). `SURROGATE_OWNER=MfDuWeqSHEqTFVYZ7LoexgAK9dxk7cy4DFJWjWMGVWa`
+  is set (same funded wallet used in the clmm-orca smoke-check) so that if
+  a real opportunity appears, its simulation reflects real ATA/business
+  logic rather than failing on the unfunded local wallet — **the first
+  10-second launch attempt omitted this and was killed and restarted**;
+  see `logs/shadow-run-3-clmm-orca.aborted-no-surrogate.log` for that
+  short-lived, zero-opportunity, zero-send artifact.
+- **No fixed run duration was set this time** (owner asked for "at least
+  72 hours" — treat that as a floor, not an auto-stop; check back in and
+  decide based on the data, don't just kill it at the 72h mark
+  mechanically). Stop with `pkill -f "tsx src/main.ts"` when ready to
+  analyze a closed window.
+- **Go/no-go bar recorded in advance** (owner, 2026-07-22, before seeing
+  any `clmm-orca` results): a few genuinely net-profitable opportunities
+  per day, consistently across multiple days — not a one-off spike.
+  Judged against `netPositive` (from `scripts/shadow-stats.ts`) converted
+  to a per-day rate, NOT the raw `opportunitiesPerHour` figure (that only
+  reflects a loose base-fee-only detect-time gate). Full methodology
+  recorded in `docs/phases/phase-2-mainnet-shadow-mode.md` ("Phase-3
+  go/no-go bar").
+
+### WHAT WAS RETIRED THIS UPDATE
+- **`shadow-run-2`** (two-Orca on the handoffMs-corrected code) — stopped
+  cleanly via `SIGINT` at 2026-07-22T13:57Z (`stopping after current
+  cycle…` → `source finished; exiting.`, confirmed graceful, zero sends
+  throughout its life). Final tally: started 2026-07-20T17:20:33Z, ran
+  ~44.6 h, **29,565 cycles, ALL `no-opportunity`, ZERO sends** — same
+  zero-signal picture as the closed 72h run (gaps oscillate −1…+2 bps; a
+  round trip nets ≈ −1.04 USDC, below the 0.01-USDC threshold). **30,064
+  cycles** total (grep-verified against the frozen log), 0 opportunities,
+  0 sends. Log frozen at `logs/shadow-run-2-corrected.log`. Its purpose
+  (proving the `handoffMs` fix live + confirming a healthy pipeline) was
+  already served before this stop.
 
 ### WHAT'S DONE SINCE THE 2026-07-17 HANDOFF
 
@@ -87,14 +111,17 @@ strategy actually targets.
    untouched.
 
 ### WHAT'S LEFT IN PHASE 2 (operational, not code)
-1. **Cut the live shadow run over from `orca-orca` to `clmm-orca`** — stop
-   `shadow-run-2`, start a fresh run with the `.env.example` `clmm-orca`
-   block (CLMM pool `3ucNos…Uxv` + Orca whirlpool `Czfq3x…44zE`). This is
-   the run that produces the actual net-positive-after-cost rate = the
-   Phase-3 go/no-go signal.
-2. **Capture ADR-0010** ("Raydium CLMM as cross-DEX shadow venue") once
-   that run produces its first signal.
-3. Then the Phase-2 exit criteria (real detection-rate data + explicit
+1. ~~Cut the live shadow run over from `orca-orca` to `clmm-orca`~~ —
+   **DONE 2026-07-22T13:58:56Z**, see `shadow-run-3-clmm-orca` above.
+2. **Let it run and check in against the owner's go/no-go bar** (a few
+   genuinely net-positive opportunities/day, consistently across multiple
+   days — see above and the phase-2 doc). Use `npx tsx
+   scripts/shadow-stats.ts --cluster mainnet-beta --since <window>` across
+   multiple non-overlapping windows, not just the cumulative total.
+3. **Capture ADR-0010** ("Raydium CLMM as cross-DEX shadow venue") once
+   the run produces its first signal (or a clean negative, symmetrically
+   with the two-Orca finding).
+4. Then the Phase-2 exit criteria (real detection-rate data + explicit
    data-backed Phase-3 decision) can finally be marked met.
 
 ### STILL-STANDING CAVEATS
