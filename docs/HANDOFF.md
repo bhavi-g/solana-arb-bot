@@ -1,6 +1,50 @@
 # Project Handoff
 
 ## Last updated
+2026-07-26, ~02:41 UTC. **PHASE 1 DONE. PHASE 2 DONE — NO-GO.** The
+`clmm-orca` cross-DEX shadow run (the one built specifically to produce
+the real Phase-3 go/no-go signal) ran 84.7h / 55,245 cycles and returned
+zero signal, same shape as the earlier two-Orca interim run. Stopped
+cleanly on owner instruction, decision recorded in ADR-0010, and Phase 2
+is now closed with an explicit, data-backed **no-go** on proceeding to
+Phase 3 as currently scoped.
+
+### PHASE 2 CONCLUSION — NO-GO (both tested venues)
+- **Nothing is running.** `shadow-run-3-clmm-orca` was stopped via
+  graceful `SIGINT` at **2026-07-26T02:41:13Z**
+  (`stopping after current cycle…` → `source finished; exiting.`,
+  confirmed zero processes remaining). No shadow run, and nothing else,
+  is currently live in this project.
+- **Final tally:** started 2026-07-22T13:58:56Z, ran **84.7h, 55,245
+  cycles, 0 opportunities, 0 net-positive, 0 sends** — every single cycle
+  a correct `no-opportunity`. `handoffMs` p50 53ms / p95 156ms throughout,
+  no simulation failures. Frozen in `logs/attempts.jsonl`
+  (`timestamp >= 2026-07-22T13:58:56Z`) and `logs/shadow-run-3-clmm-orca.log`.
+- **Combined with the two-Orca result** (42,323 + 30,064 cycles, also
+  0/0/0, see below), this is a **second, independent, confirmed
+  zero-signal finding** — on a structurally different, genuinely
+  cross-DEX venue, not explained away by "two pools tracking too
+  closely."
+- **Decision recorded: ADR-0010**
+  (`docs/adr/0010-clmm-orca-zero-signal-phase2-conclusion.md`). Judged
+  against the owner's pre-committed bar (a few genuinely net-profitable
+  opportunities/day, consistently across multiple days, via
+  `netPositive`) — **not met on either tested venue.** Phase 2's exit
+  criteria are now all checked in
+  `docs/phases/phase-2-mainnet-shadow-mode.md` (Status: **DONE**).
+- **What this means going forward:** proceeding to Phase 3 (real capital,
+  real sends) is NOT justified by the data collected. Whether to pursue a
+  broader search — different pairs, other venues, larger trade sizes, or
+  a Jito-bundle-competitive redesign — is an open scope question for the
+  owner, not decided here (see ADR-0010 "Risks"). **Do not restart this
+  same SOL/USDC two-venue experiment expecting a different answer** —
+  read ADR-0010 first.
+- Full write-up: `docs/sessions/2026-07-26.md`.
+
+Earlier state (as of the 2026-07-22 cutover, when the run above was just
+starting) preserved below for historical context.
+
+## Last updated (prior)
 2026-07-22, ~13:59 UTC. **PHASE 1 DONE. PHASE 2 MOSTLY DONE, CROSS-DEX
 SIGNAL RUN NOW LIVE.** The two foundational pieces (a trustworthy latency
 metric, the real cross-DEX venue) were built, verified, and merged earlier

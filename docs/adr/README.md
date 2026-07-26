@@ -11,3 +11,4 @@
 | [0007](0007-real-fetched-tx-fee-estimate.md) | Real fetched tx fee estimate, converted to quote units per cycle | accepted | 2026-07-16 |
 | [0008](0008-structural-send-disable-shadow-mode.md) | Structural send-disable for mainnet shadow mode | accepted | 2026-07-17 |
 | [0009](0009-realistic-cost-model.md) | Realistic cost model — gross AND net on every shadow record | accepted | 2026-07-17 |
+| [0010](0010-clmm-orca-zero-signal-phase2-conclusion.md) | Raydium-CLMM-vs-Orca venue tested, zero signal; Phase 2 concludes no-go | accepted | 2026-07-26 |

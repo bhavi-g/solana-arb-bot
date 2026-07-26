@@ -1,10 +1,11 @@
 # Phase 2 — Mainnet Shadow Mode
 
-## Status: IN PROGRESS — venue decided and BUILT. The two-Orca interim run
-## is done (42,323 cycles, zero signal — documented negative finding) and
-## the cross-DEX `clmm-orca` venue is built, tested, and merged (`3964374`).
-## Remaining is operational: cut the live shadow run over to `clmm-orca` to
-## collect the real Phase-3 go/no-go signal, then capture ADR-0010.
+## Status: DONE — both venues tested, both zero signal. The two-Orca
+## interim run (42,323 cycles) and the cross-DEX `clmm-orca` run (55,245
+## cycles, 84.7h) each returned 0 opportunities / 0 net-positive. Explicit
+## go/no-go decision made (ADR-0010, 2026-07-26): the bar was NOT met on
+## either venue; Phase 2 concludes with a data-backed no-go on proceeding
+## to Phase 3 as currently scoped.
 
 Build-task state (2026-07-17): (1) mainnet config profile ✔ (.env.example
 Phase-2 block; ADR-0008 send-disable enforced at PHASE=2). (2) price feed ✔
@@ -43,14 +44,21 @@ before a single cent is risked.
    core strategy finds anything real.
 
 ## Exit criteria
-- [ ] Ran in shadow mode for [duration — set once Phase 1 results are in]
-- [ ] Have real data on detection rate and simulated profit
-- [ ] Explicit decision made (with data, not assumption) on whether to
-      proceed to Phase 3
+- [x] Ran in shadow mode for [duration — set once Phase 1 results are in]
+      — two-Orca 71.8h (42,323 cycles) + `clmm-orca` 84.7h (55,245
+      cycles); both well past the 72h floor.
+- [x] Have real data on detection rate and simulated profit — both runs:
+      0 opportunities, 0 net-positive, healthy latency throughout
+      (see run results below and ADR-0010).
+- [x] Explicit decision made (with data, not assumption) on whether to
+      proceed to Phase 3 — **NO-GO**, recorded in ADR-0010 (2026-07-26):
+      the owner's go/no-go bar (a few net-profitable opportunities/day,
+      consistently) was not met on either tested venue.
 
 ## End-of-phase output
 Update session log with the four-part summary plus shadow-mode stats
-(opportunities/hour, avg simulated profit, revert rate).
+(opportunities/hour, avg simulated profit, revert rate). Done — see
+`docs/sessions/2026-07-26.md`.
 
 ## Phase-3 go/no-go bar — owner-set, recorded 2026-07-22 BEFORE the
 ## `clmm-orca` run's results are seen
@@ -198,3 +206,47 @@ corrected code (same pools/config as above), logging to
 accumulate across the restart (the closed window's records are preserved
 separately in `logs/attempts-72h-two-orca.jsonl`; any future analysis of
 the new run should filter `timestamp >= 2026-07-20T17:20:33Z`).
+
+The two-Orca venue was stopped for good on 2026-07-22T13:57Z (final tally
+across its two segments: 30,064 cycles, 0 opportunities, 0 sends) to cut
+the live run over to the real cross-DEX venue, `clmm-orca`.
+
+## Run result — `clmm-orca` venue, FINAL (the real Phase-3 go/no-go signal)
+
+**Run:** `shadow-run-3-clmm-orca`, `mainnet-beta`, `polling`, PHASE=2
+(send structurally disabled). Raydium CLMM pool
+`3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv` (4 bps, $5.9M TVL) vs Orca
+whirlpool `Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE` (4 bps, $32.5M
+TVL) — cross-DEX, the arbitrage the strategy actually targets. Config:
+`TRADE_SIZE_QUOTE=100 USDC`, `MIN_PROFIT_THRESHOLD_QUOTE=10000` (0.01
+USDC), `SLIPPAGE_TOLERANCE_BPS=50`. Started 2026-07-22T13:58:56Z, stopped
+2026-07-26T02:41:13Z via graceful `SIGINT` (`stopping after current
+cycle…` → `source finished; exiting.`), on owner instruction after 84.7h
+of unchanging zero signal — well past the "at least 72 hours" floor set
+at launch.
+
+**Window analysed (full, closed):** 2026-07-22T13:58:57Z →
+2026-07-26T02:41:13Z (**84.7 h**), **55,245 cycles** (all
+`mainnet-beta`/`polling`). Live dataset: `logs/attempts.jsonl`
+(`timestamp >= 2026-07-22T13:58:56Z`); raw log `logs/shadow-run-3-clmm-orca.log`.
+
+**Result — ZERO signal, confirmed at full window close:**
+- **0 opportunities** (gross or net) across all 55,245 cycles — every
+  cycle a correct `no-opportunity`.
+- **0 sends** (shadow-mode integrity intact; ADR-0008 held) — confirmed
+  end-to-end, from run start through graceful SIGINT shutdown.
+- Latency healthy throughout: `handoffMs` p50 53ms / p95 156ms, no
+  simulation failures.
+
+**Interpretation — this is the real go/no-go signal, and it's negative.**
+Unlike the two-Orca same-pair interim venue, `clmm-orca` compares two
+independently-priced DEXes, so this result is not explained away by "two
+pools that track each other too closely." Across 84.7 hours and 55,245
+cycles, the CLMM/whirlpool gap never once cleared the ~1 USDC round-trip
+cost (pool fees + slippage + tx fee + modeled priority fee/tip) by the
+0.01 USDC threshold. Combined with the two-Orca result, this is a
+**second, independent, confirmed zero-signal finding**. Full go/no-go
+decision recorded in **ADR-0010**: the owner's bar (a few net-profitable
+opportunities/day, consistently across multiple days) was not met on
+either tested venue — Phase 2 concludes NO-GO on proceeding to Phase 3 as
+currently scoped (SOL/USDC, these two venue pairs, $100 trade size).
