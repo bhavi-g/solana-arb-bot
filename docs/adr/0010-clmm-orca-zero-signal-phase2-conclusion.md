@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-26
 **Status**: accepted
-**Deciders**: Adish (project owner); run stopped and result accepted on
+**Deciders**: Bhavish Goyal (project owner); run stopped and result accepted on
 owner instruction 2026-07-26 ("second, complete, confirmed zero-signal
 finding... no reason to keep running longer, the trend never moved")
 

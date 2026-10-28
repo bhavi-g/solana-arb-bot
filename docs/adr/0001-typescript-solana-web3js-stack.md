@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-16
 **Status**: accepted
-**Deciders**: Adish (project owner, locked in PROJECT_BRIEF.md); drafted by Claude during the 2026-07-16 unattended session per owner's standing instruction
+**Deciders**: Bhavish Goyal (project owner, locked in PROJECT_BRIEF.md); drafted by Claude during the 2026-07-16 unattended session per owner's standing instruction
 
 ## Context
 

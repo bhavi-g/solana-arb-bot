@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-16
 **Status**: accepted
-**Deciders**: Adish (project owner); drafted by Claude during a
+**Deciders**: Bhavish Goyal (project owner); drafted by Claude during a
 superpowers:brainstorming session, reviewed and accepted by the owner
 before implementation (unlike ADRs 0001–0006, which were pre-authorized to
 write as accepted unattended — this one the owner explicitly reviewed first)

@@ -1,23 +1,61 @@
 # solana-arb-bot
 
-Solana atomic arbitrage bot — **Phase 1: devnet mechanics**. Correct first,
-fast second. See [PROJECT_BRIEF.md](PROJECT_BRIEF.md) for the mission,
-[docs/NEVER_DO.md](docs/NEVER_DO.md) for the hard rules, and
-[docs/adr/](docs/adr/) for why things are the way they are.
+A Solana atomic cross-DEX arbitrage bot, built as a staged research project
+with one hard rule: **correct first, fast second — and no real capital until
+the strategy proves itself on real data.**
 
-## What it does
+It watches a SOL/USDC pool on two DEXes (Raydium and Orca), detects fee-aware
+price gaps with constant-product / concentrated-liquidity math, and builds a
+single atomic transaction that executes both legs (buy cheap, sell expensive)
+or reverts entirely. Every send is simulated first; every attempt — detected,
+aborted, or sent — is appended to `logs/attempts.jsonl` with the gap, the real
+simulation result, and the decision.
 
-Watches a SOL/USDC pool on Raydium (CPMM) and Orca (Whirlpool), detects
-cross-DEX price gaps with fee-aware constant-product math, builds ONE atomic
-transaction containing both legs (buy cheap, sell expensive), **always**
-simulates it first, and only sends if simulation passes and net profit clears
-the configured threshold. Every attempt — detected, aborted, sent — is
-appended to `logs/attempts.jsonl` with the gap, the real simulation result,
-and the reason.
+## TL;DR for a reviewer
 
-Profitability is also enforced on-chain: the sell leg's minimum-out is set to
-`quoteIn + MIN_PROFIT_THRESHOLD_QUOTE`, so if state moved, the whole
-transaction reverts atomically.
+- **Correctness-first execution.** One atomic two-leg transaction;
+  `simulateTransaction` is mandatory before every send (ADR-0005); the compute
+  budget is measured from simulation, never guessed. Profit is enforced three
+  ways — at detection, re-checked in the executor, and encoded on-chain in the
+  sell leg's minimum-out, so the whole transaction reverts atomically if state
+  moves between detect and land.
+- **Honest cost accounting.** Profit math includes both pool fees, the priority
+  fee, and a modeled Jito tip — not just the raw price gap, which is the #1
+  documented failure mode in comparable open-source bots (ADR-0009).
+- **Swappable data layer behind one interface** (ADR-0006): synthetic → devnet
+  polling → mainnet polling, so detection logic never changes when the data
+  source does.
+- **159 passing tests** across AMM math, gap detection, the executor send-gate,
+  fee estimation, account decoders, and the rate limiter; strict TypeScript,
+  `tsc --noEmit` clean.
+- **Decisions are documented, not just made:** 10 ADRs, per-phase docs, and
+  dated session logs explain *why* the code is shaped the way it is.
+
+## Result: a documented NO-GO (the point, not a failure)
+
+Phase 1 reached verified live **devnet** arbitrage sends (8 txs finalized,
++0.288 devUSDC net, 2026-07-16). Phase 2 then ran the strategy in **mainnet
+shadow mode** — reading real pool state and simulating real opportunities, but
+structurally unable to send (ADR-0008) — across two structurally different
+venues for ~200 combined hours and ~97,000 cycles.
+
+The result was **zero net-profitable opportunities**, consistently, on both
+venues. Rather than rationalize past a go/no-go bar that was written down
+*before* the data arrived, the project concluded Phase 2 with an explicit
+**NO-GO** (ADR-0010) and did not advance to risking real capital. Knowing when
+*not* to deploy money — and building the instrumentation that lets you prove
+it — is the deliverable.
+
+## How to read this repo
+
+| Start here | Why |
+|---|---|
+| [PROJECT_BRIEF.md](PROJECT_BRIEF.md) | mission, locked decisions, phased roadmap |
+| [docs/adr/](docs/adr/) | every significant decision + rationale (start with 0005, 0008, 0009, 0010) |
+| [src/executor.ts](src/executor.ts) | the single send path: simulate → abort or send |
+| [src/detect.ts](src/detect.ts) + [src/math/](src/math/) | pure, fully-tested gap detection and AMM math |
+| [docs/sessions/](docs/sessions/) | dated work logs: what was built, what worked, what's left |
+| [docs/NEVER_DO.md](docs/NEVER_DO.md) | the hard safety rules, enforced in code |
 
 ## Setup
 
@@ -108,7 +146,7 @@ Other known third-party devnet pools for this pair (dust; probe with
 ## Tests
 
 ```bash
-npm test          # 89 tests: AMM math, detection, executor gate, fee estimate, seed plan, decoders, limiter…
+npm test          # 159 tests: AMM math, detection, executor gate, fee estimate, seed plan, decoders, limiter…
 npm run typecheck
 ```
 

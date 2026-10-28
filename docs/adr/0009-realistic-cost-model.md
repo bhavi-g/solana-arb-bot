@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-17
 **Status**: accepted
-**Deciders**: Adish (project owner); requirement added by the owner after
+**Deciders**: Bhavish Goyal (project owner); requirement added by the owner after
 order-type/open-source-bot research ("the #1 documented failure mode in
 comparable open-source bots [is] hardcoded/optimistic profit math"),
 design approved 2026-07-17

@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-17
 **Status**: accepted
-**Deciders**: Adish (project owner); designed via superpowers:brainstorming
+**Deciders**: Bhavish Goyal (project owner); designed via superpowers:brainstorming
 on 2026-07-17, all six design decision points explicitly answered by the
 owner before implementation (see
 `docs/superpowers/specs/2026-07-17-phase-2-mainnet-shadow-mode-design.md`)
