@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/main.ts",
+    "pretest": "npm run build:rust",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
