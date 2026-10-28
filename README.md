@@ -25,16 +25,19 @@ simulation result, and the decision.
 - **Swappable data layer behind one interface** (ADR-0006): synthetic → devnet
   polling → mainnet polling, so detection logic never changes when the data
   source does.
-- **The on-chain safety guard is Rust, not TS** (ADR-0011): the sell leg's
-  minimum-out — the arithmetic the atomic-revert safety case rests on — is
-  computed by `rust/arb-math`, a `u64`, overflow-checked crate matching the
-  real on-chain field width, called from `src/txbuilder/index.ts` on every
-  transaction build.
-- **163 passing tests** across AMM math, gap detection, the executor send-gate,
+- **Detection and the on-chain safety guard are both Rust** (ADR-0011,
+  ADR-0012): `rust/arb-math` ports both the sell leg's minimum-out guard
+  (`u64`, overflow-checked, matching the real on-chain field width) and
+  the full `detect()` opportunity-decision — both-direction AMM math,
+  fee/threshold comparison, gap-bps diagnostic. `src/main.ts`'s live
+  polling loop calls the Rust implementation every cycle; the original TS
+  implementation stays in the repo as the tested reference a parity suite
+  checks the Rust port against.
+- **173 passing tests** across AMM math, gap detection, the executor send-gate,
   fee estimation, account decoders, the rate limiter, and the Rust port
-  (14 `cargo test` cases plus a TS/Rust parity suite); strict TypeScript,
+  (21 `cargo test` cases plus TS/Rust parity suites); strict TypeScript,
   `tsc --noEmit` clean.
-- **Decisions are documented, not just made:** 11 ADRs, per-phase docs, and
+- **Decisions are documented, not just made:** 12 ADRs, per-phase docs, and
   dated session logs explain *why* the code is shaped the way it is.
 
 ## Result: a documented NO-GO (the point, not a failure)
@@ -152,7 +155,7 @@ Other known third-party devnet pools for this pair (dust; probe with
 ## Tests
 
 ```bash
-npm test          # 163 tests: AMM math, detection, executor gate, fee estimate, seed plan, decoders, limiter…
+npm test          # 173 tests: AMM math, detection, executor gate, fee estimate, seed plan, decoders, limiter…
 npm run typecheck
 npm run build:rust  # builds rust/arb-math (also builds lazily on first use)
 ```
@@ -163,8 +166,8 @@ npm run build:rust  # builds rust/arb-math (also builds lazily on first use)
 |---|---|
 | `src/datasource/` | `PriceSource` interface + polling & synthetic adapters, rate limiter |
 | `src/decode/` | raw account → typed state (offsets verified against upstream) |
-| `src/math/`, `src/detect.ts` | pure, fully-tested AMM math and gap detection |
-| `src/rustmath.ts`, `rust/arb-math/` | Rust crate for the on-chain guard math (ADR-0011), called via a JSON CLI boundary |
+| `src/math/`, `src/detect.ts` | pure, fully-tested AMM math and gap detection — TS reference implementation |
+| `src/rustmath.ts`, `rust/arb-math/` | Rust crate: detection (ADR-0012) and the on-chain guard math (ADR-0011) — what `main.ts` actually calls, via a JSON CLI boundary |
 | `src/txbuilder/` | the single atomic two-leg transaction |
 | `src/executor.ts` | the ONLY send path: simulate → abort or send |
 | `src/logger.ts` | JSONL attempt log |

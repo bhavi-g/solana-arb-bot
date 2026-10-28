@@ -16,12 +16,12 @@ import {
   medianCuPriceMicroLamports,
   DEFAULT_CU_PRICE_MICRO_LAMPORTS,
 } from "./costs.js";
-import { detect } from "./detect.js";
 import {
   applyFeeHeadroom,
   lamportsFeeToQuote,
   resolveBaseFeeLamports,
 } from "./fee.js";
+import { detectViaRust } from "./rustmath.js";
 import { execute, SendDisabledError, type ExecutorRpc } from "./executor.js";
 import { AttemptLogger } from "./logger.js";
 import { loadOrCreateKeypair } from "./wallet.js";
@@ -140,7 +140,7 @@ async function main(): Promise<void> {
     const estTxFeeQuote =
       cfg.estTxFeeQuote ?? lamportsFeeToQuote(feeLamportsWithHeadroom, pair.cpmm);
     const detectStart = performance.now();
-    const decision = detect(pair.cpmm, pair.whirlpool, {
+    const decision = detectViaRust(pair.cpmm, pair.whirlpool, {
       tradeSizeQuote: cfg.tradeSizeQuote,
       minProfitThresholdQuote: cfg.minProfitThresholdQuote,
       slippageToleranceBps: cfg.slippageToleranceBps,

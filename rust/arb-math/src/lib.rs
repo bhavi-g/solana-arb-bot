@@ -9,6 +9,8 @@
 
 use std::fmt;
 
+pub mod detect;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum MathError {
     ZeroReserve,
