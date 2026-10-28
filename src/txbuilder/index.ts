@@ -6,7 +6,8 @@
  * longer clear the threshold, the whole transaction reverts (and the
  * mandatory simulation in the executor catches it before we even pay a
  * fee). The buy leg's minimum-out is the detection estimate, guaranteeing
- * the sell leg's input amount exists.
+ * the sell leg's input amount exists. This guard arithmetic is computed
+ * by the arb-math Rust crate, not inline TS (ADR-0011).
  */
 import {
   ComputeBudgetProgram,
@@ -19,6 +20,7 @@ import {
 import type { PairInfo, Opportunity } from "../types.js";
 import type { RaydiumCpmmPoolState } from "../decode/raydiumCpmm.js";
 import type { WhirlpoolState } from "../decode/orcaWhirlpool.js";
+import { minQuoteOutViaRust } from "../rustmath.js";
 import { buildCpmmSwapBaseInputIx } from "./raydiumCpmm.js";
 import { buildWhirlpoolSwapIx } from "./orcaWhirlpool.js";
 
@@ -73,7 +75,7 @@ export function buildArbTransaction(
   const quoteMint = new PublicKey(ctx.pair.quoteMint);
   const owner = ctx.payer instanceof Keypair ? ctx.payer.publicKey : ctx.payer;
 
-  const minQuoteOut = opp.quoteIn + opp.minProfitThreshold;
+  const minQuoteOut = minQuoteOutViaRust(opp.quoteIn, opp.minProfitThreshold);
 
   const buyLegIsCpmm = opp.direction.buyOn === "raydium-cpmm";
   const cpmmIx = buildCpmmLeg(

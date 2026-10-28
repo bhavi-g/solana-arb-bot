@@ -8,7 +8,8 @@
     "start": "tsx src/main.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:rust": "cargo build --release --manifest-path rust/arb-math/Cargo.toml"
   },
   "engines": {
     "node": ">=20"

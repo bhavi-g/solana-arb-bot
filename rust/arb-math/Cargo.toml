@@ -1,0 +1,18 @@
+[package]
+name = "arb-math"
+version = "0.1.0"
+edition = "2021"
+description = "Overflow-checked arbitrage safety math (minimum-out guard, CPMM pricing), ported from src/math/cpmm.ts and src/txbuilder/index.ts (ADR-0011), exposed to the TS bot over a JSON CLI boundary."
+publish = false
+
+[lib]
+name = "arb_math"
+path = "src/lib.rs"
+
+[[bin]]
+name = "arb-math-cli"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
