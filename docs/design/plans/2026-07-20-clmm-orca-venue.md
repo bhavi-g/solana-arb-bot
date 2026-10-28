@@ -1,6 +1,5 @@
 # Raydium CLMM ↔ Orca cross-DEX venue — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Wire the merged Raydium CLMM decoder + swap_v2 builder into a runnable `VENUE=clmm-orca` cross-DEX shadow venue (atomic two-leg arb tx, polling source, config/main wiring), proven by a read-only mainnet simulation smoke-check.
 
@@ -8,7 +7,7 @@
 
 **Tech Stack:** TypeScript (ESM, `.js` import specifiers), `@solana/web3.js`, vitest, `tsx`. Node crypto for Anchor discriminators (already in the swap_v2 builder).
 
-**Spec:** `docs/superpowers/specs/2026-07-20-clmm-orca-venue-design.md`
+**Spec:** `docs/design/specs/2026-07-20-clmm-orca-venue-design.md`
 
 ## Global Constraints
 

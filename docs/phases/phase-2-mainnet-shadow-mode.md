@@ -178,7 +178,7 @@ verified healthy (42k clean cycles, correct decisions, zero sends) — the
 absence of signal is a property of the venue, not a bug. It confirms the
 need for the cross-DEX Option-1 (Raydium CLMM) venue — whose decoder
 foundation is built and merged (`ade7628`), and whose `swap_v2` tx-builder
-foundation is now in design (spec: `docs/superpowers/specs/
+foundation is now in design (spec: `docs/design/specs/
 2026-07-20-raydium-clmm-swapv2-builder-design.md`) — to produce the real
 Phase-3 go/no-go signal.
 

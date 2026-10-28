@@ -11,7 +11,7 @@
  *
  * Tick arrays: fixed 3-array heuristic mirroring orcaWhirlpool.ts (not
  * full tick_array_bitmap discovery) — see design spec
- * docs/superpowers/specs/2026-07-20-raydium-clmm-swapv2-builder-design.md.
+ * docs/design/specs/2026-07-20-raydium-clmm-swapv2-builder-design.md.
  */
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { createHash } from "node:crypto";

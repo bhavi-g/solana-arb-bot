@@ -1,6 +1,5 @@
 # Phase 2 Mainnet Shadow Mode Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Run detection against real mainnet SOL/USDC pool state with the send path structurally disabled, logging every opportunity with a full realistic cost breakdown (gross AND net), plus stats tooling and a code-only Geyser gRPC source.
 
@@ -8,7 +7,7 @@
 
 **Tech Stack:** TypeScript, @solana/web3.js 1.98.4, vitest, tsx. New devDependency in Task 7 only: `@triton-one/yellowstone-grpc` (exact-pinned).
 
-**Spec:** `docs/superpowers/specs/2026-07-17-phase-2-mainnet-shadow-mode-design.md` (owner-approved).
+**Spec:** `docs/design/specs/2026-07-17-phase-2-mainnet-shadow-mode-design.md` (owner-approved).
 
 ## Global Constraints
 
@@ -19,7 +18,7 @@
 - All money math in bigint base units; no floats in profit calculations (floats allowed only for rates/latencies in stats output).
 - Never fabricate simulation output or addresses; discover mainnet addresses live via the probe script.
 - `npm test` and `npm run typecheck` must be green before every commit.
-- Commit format: `T<n>: <summary>` continuing the repo sequence (next is T27), with the Claude co-author trailer.
+- Commit format: `T<n>: <summary>` continuing the repo sequence (next is T27), with the standard co-author trailer.
 - If the mainnet Raydium CPMM SOL/USDC pool has quote reserves below 100,000 USDC (base units 100_000_000_000), STOP and ask the owner (Decision 6) — do not proceed to the shadow run, do not build a CLMM decoder, do not fall back to Orca-only.
 
 ---

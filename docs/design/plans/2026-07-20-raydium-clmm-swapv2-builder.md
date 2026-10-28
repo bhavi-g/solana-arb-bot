@@ -1,6 +1,5 @@
 # Raydium CLMM swap_v2 Builder Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add `buildClmmSwapV2Ix` — a Raydium CLMM `swap_v2` instruction builder plus its tick-array/bitmap-extension PDA helpers — proven correct by unit tests and a read-only mainnet simulation against the live pool.
 
@@ -133,7 +132,7 @@ Create `src/txbuilder/raydiumClmm.ts`:
  *
  * Tick arrays: fixed 3-array heuristic mirroring orcaWhirlpool.ts (not
  * full tick_array_bitmap discovery) — see design spec
- * docs/superpowers/specs/2026-07-20-raydium-clmm-swapv2-builder-design.md.
+ * docs/design/specs/2026-07-20-raydium-clmm-swapv2-builder-design.md.
  */
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { createHash } from "node:crypto";

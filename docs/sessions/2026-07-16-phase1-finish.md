@@ -3,8 +3,7 @@
 Continues from `2026-07-16.md` (overnight run) and the transfer handoff
 (`docs/HANDOFF.md`). Owner is attending this session. Reordered plan:
 (1) fee-default ADR + fix, (2) pool seeding, (3) live polling → real send.
-Superpowers skills active this session (brainstorming, TDD, verification-
-before-completion). All times UTC.
+All times UTC.
 
 ## Task 1 — EST_TX_FEE_QUOTE: real fetched fee instead of hardcoded 1000
 
@@ -19,7 +18,7 @@ full suite green.
   apply a fixed **+20% headroom to the lamport figure only**; convert to
   quote units at the live mid price **every cycle**. `EST_TX_FEE_QUOTE`
   stays as an explicit manual override that bypasses the live path.
-- Brainstormed SOL-vs-quote denomination first (superpowers:brainstorming).
+- Brainstormed SOL-vs-quote denomination first with the owner.
   Outcome: keep the comparison in quote units (threshold + trade size are
   already quote-denominated), convert the fee into quote units — don't move
   the threshold into lamports.
@@ -203,8 +202,8 @@ spacing — out of our control on this devnet config.
 
 ## WHAT'S LEFT (this session)
 3. Live polling against seeded pools → an ACTUAL on-chain send (final
-   Phase-1 exit criterion); verify with the real signature via
-   superpowers:verification-before-completion.
+   Phase-1 exit criterion); verify with the real on-chain signature, not
+   just a log line.
 
 ## OPEN QUESTIONS / BLOCKERS
 - None for Task 1. Next gate is the Raydium CPMM SDK decision (Task 2),

@@ -271,12 +271,11 @@ The owner gave a 3-part instruction for finishing Phase 1:
    triggers an **actual send** — the final Phase-1 exit criterion — and
    verify it with the real on-chain signature, not just a log line.
 
-**What was actually done toward this**: research only. I confirmed the
-Superpowers plugin and its skills were active, and read
+**What was actually done toward this**: research only. Read
 `PROJECT_BRIEF.md`, `docs/NEVER_DO.md`, `docs/phases/phase-1-devnet-mechanics.md`,
 `docs/sessions/2026-07-16.md`, and the ADR index
-(`docs/adr/README.md` — titles/status of all six ADRs). I had just started
-reading individual ADR files to confirm the numbering convention for a new
+(`docs/adr/README.md` — titles/status of all six ADRs). Individual ADR
+files were being read to confirm the numbering convention for a new
 ADR-0007 when the session was interrupted to write this handoff instead.
 
 **Not started at all**:
@@ -295,11 +294,11 @@ ADR-0007 when the session was interrupted to write this handoff instead.
   `"action":"sent"` entries from a real run (only from unit tests, which
   don't touch this file).
 
-**Is it safe to just re-run the same prompt?** Yes. Nothing was left
-half-written — no partial script, no broken test, no uncommitted diff.
-The only "progress" was documents read into context, which the next
-session can re-read itself (see below). Re-running the original prompt
-verbatim is safe and will start clean from step 1.
+**Is it safe to just restart from the same instructions?** Yes. Nothing was
+left half-written — no partial script, no broken test, no uncommitted diff.
+The only "progress" was documents read for context, which the next session
+can re-read itself (see below). Restarting from step 1 below is safe and
+will start clean.
 
 One thing worth flagging to whoever runs it next: pool creation on both
 Raydium CPMM and Orca Whirlpool is nontrivial to hand-roll (tick arrays,
@@ -311,76 +310,39 @@ equivalent will likely need to be added, the same way the Orca SDK was
 added last session (see "Do not repeat these mistakes" below for the
 verification steps that took).
 
-## What to do next (copy-pasteable)
+## What to do next
 
-Run this prompt verbatim to continue:
-
-```
-Confirm the superpowers plugin and its skills are loaded before starting
-(you should see using-superpowers active). Read PROJECT_BRIEF.md,
-docs/NEVER_DO.md, docs/phases/phase-1-devnet-mechanics.md, and the latest
-session log in docs/sessions/ before doing anything.
-
-The wallet FeRGsxw2jjTtSfta4Gy5JdNDaVBrWJyUKeogEVRiE2PB is now funded with
-devnet SOL and has WSOL + devUSDC token accounts with real balances.
+Read `PROJECT_BRIEF.md`, `docs/NEVER_DO.md`,
+`docs/phases/phase-1-devnet-mechanics.md`, and the latest session log in
+`docs/sessions/` before doing anything. Re-check current wallet balances
+yourself (devnet state may have drifted) rather than trusting the numbers
+in this doc — as of this handoff, wallet
+`FeRGsxw2jjTtSfta4Gy5JdNDaVBrWJyUKeogEVRiE2PB` is funded with devnet SOL
+and has WSOL + devUSDC token accounts with real balances.
 
 Remaining work for Phase 1:
 
 1. Seed our own devnet pools (Raydium CPMM + Orca Whirlpool) with real,
    non-dust liquidity so detection and execution can be tested against
-   something realistic. Use superpowers:test-driven-development — write
-   tests for the seeding script before running it against real devnet
-   funds.
+   something realistic. Write tests for the seeding script first, before
+   running it against real devnet funds.
 
-2. Set EST_TX_FEE_QUOTE properly: fetch real recent devnet fee data and
+2. Set `EST_TX_FEE_QUOTE` properly: fetch real recent devnet fee data and
    compute a sound default with headroom, instead of a hardcoded guess.
-   Use superpowers:brainstorming briefly on whether this should be
-   SOL-denominated or converted to quote-token units, and document the
-   choice as an ADR.
+   Decide whether this should be SOL-denominated or converted to
+   quote-token units, and document the choice as an ADR.
 
 3. Run live polling against the seeded pools. When a real profitable
    opportunity is detected, let the full flow proceed to an ACTUAL SEND —
-   this is the final Phase 1 exit criterion. Use
-   superpowers:verification-before-completion before declaring this done:
-   show me the actual on-chain transaction signature and result, not just
-   a log line.
+   this is the final Phase 1 exit criterion. Verify with the actual
+   on-chain transaction signature and result, not just a log line.
 
-Update docs/adr/ with the fee-default ADR from item 2.
-
-At the end, update the session log with the four-part summary, and mark
-phase-1-devnet-mechanics.md Status as DONE only if every exit criterion
-has real evidence, including the live send.
-```
-
-Before running it, re-check current wallet balances yourself (devnet
-state may have drifted) rather than trusting the numbers in this doc.
+Update `docs/adr/` with the fee-default ADR from item 2. At the end,
+update the session log with a what-was-built / what-works / what's-left
+summary, and mark `phase-1-devnet-mechanics.md` Status as DONE only if
+every exit criterion has real evidence, including the live send.
 
 ## Environment notes
-
-**Tools to verify/install before continuing** (all three were needed last
-session; check they're still present on whatever machine picks this up):
-
-1. **Superpowers plugin** — install (or confirm already installed) with:
-   ```
-   /plugin install superpowers@claude-plugins-official
-   ```
-   Note from experience: an earlier session concluded this plugin was
-   "unavailable in this environment" and worked around it manually; a
-   later session found it was in fact already installed globally. Don't
-   trust a prior session's negative conclusion — check fresh.
-
-2. **`architecture-decision-records` skill** — no install needed. It is
-   committed in this repo at
-   `.claude/skills/architecture-decision-records/SKILL.md` (tracked in
-   git since commit `77b4704`), so it comes for free with `git clone`.
-
-3. **Context7 MCP** — this is a **project-scoped** MCP server entry in the
-   global `~/.claude.json`, keyed by absolute project path. It will NOT
-   carry over to a clone at a different path or a different machine.
-   Re-add it from inside the project directory with:
-   ```
-   claude mcp add context7 -- npx -y @upstash/context7-mcp
-   ```
 
 **`.env` and `keypairs/` are gitignored** and must be manually recreated
 on any new machine. `.env` needs these keys (see `.env.example` for the
@@ -421,15 +383,7 @@ as a startup guard, not just a convention.
 
 ## Do not repeat these mistakes
 
-1. **Don't assume a tool/plugin is unavailable based on a past session's
-   conclusion.** The 2026-07-16 unattended session concluded Superpowers
-   couldn't be installed and worked around it manually (see that session
-   log's "Process deviations" section). A later session found `/plugin
-   install superpowers@claude-plugins-official` reported it was already
-   installed globally. Environment state changes between sessions —
-   re-verify, don't inherit the old conclusion.
-
-2. **There is no devUSDC faucet website.** Don't go looking for one or
+1. **There is no devUSDC faucet website.** Don't go looking for one or
    guess a URL. Orca's own docs (and this project's experience) confirm
    devUSDC is obtained by swapping devnet SOL for it through the live
    Orca Tour-de-Whirlpool SOL/devUSDC pool
@@ -438,7 +392,7 @@ as a startup guard, not just a convention.
    (`createSyncNativeInstruction`), since the pool trades WSOL, not native
    SOL.
 
-3. **Don't trust a phrase like "whichever SDK we already have" —
+2. **Don't trust a phrase like "whichever SDK we already have" —
    check `package.json` yourself.** When asked to use "whichever Orca SDK
    we already have as a dependency," neither `@orca-so/whirlpools-sdk`
    nor `@orca-so/whirlpools` was actually installed. Verify with
@@ -453,7 +407,7 @@ as a startup guard, not just a convention.
    pinning convention in `package.json` — check that convention before
    `npm install`-ing anything new here.
 
-4. **Devnet mint addresses aren't written down anywhere in this repo as
+3. **Devnet mint addresses aren't written down anywhere in this repo as
    constants — they're discovered live.** The devUSDC mint
    (`BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k`) was found by actually
    running `scripts/probe-devnet-pools.ts` against the live Orca pool and

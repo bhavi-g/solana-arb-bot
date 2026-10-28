@@ -98,7 +98,7 @@ detection logic.
 
 ## Documentation discipline
 - docs/adr/ — Architecture Decision Records for every significant choice
-  (framework, data source, commitment level, etc.), via the ADR skill
+  (framework, data source, commitment level, etc.)
 - docs/sessions/ — one dated log per work session: WHAT I BUILT / WHAT
   WORKS / WHAT'S LEFT / OPEN QUESTIONS OR BLOCKERS
 - Read the latest session log and ADR index at the start of every session

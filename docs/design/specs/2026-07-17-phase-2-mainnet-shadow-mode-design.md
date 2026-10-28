@@ -1,8 +1,8 @@
 # Phase 2 Design — Mainnet Shadow Mode
 
 Date: 2026-07-17. Status: **approved by owner** (all six decision points
-answered; see Decisions at the end). Brainstormed via
-superpowers:brainstorming; supersedes nothing — Phase 2 is new work.
+answered; see Decisions at the end). Brainstormed with the owner before
+drafting; supersedes nothing — Phase 2 is new work.
 
 ## Goal
 

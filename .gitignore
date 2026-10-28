@@ -5,3 +5,5 @@ logs/
 keypairs/
 dist/
 .worktrees/
+.claude/
+skills-lock.json

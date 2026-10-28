@@ -46,13 +46,12 @@ core mechanics correctly and prove they work end-to-end on fake funds.
 9. Structured logging for every attempt: timestamp, detected gap, simulated
    result, submitted-or-aborted, and why.
 10. README: how to run on devnet with faucet SOL.
-11. Write tests for the opportunity-detection math and the abort-on-failed-simulation path before/alongside implementation (TDD, per Superpowers).
+11. Write tests for the opportunity-detection math and the abort-on-failed-simulation path before/alongside implementation (TDD).
 12. Respect Helius free-tier limit of 10 requests/second — build polling with this ceiling in mind, with backoff if approached.
 
 ## Process rules
-- Use the Superpowers workflow: brainstorm/clarifying questions first, then
-  a design doc shown in readable chunks, then wait for explicit approval
-  before writing any code.
+- Brainstorm/clarifying questions first, then a design doc shown in
+  readable chunks, then wait for explicit approval before writing any code.
 - Check each checkpoint diff before approving the next task.
 - Commit after each completed task, not only at session end.
 
